@@ -25,7 +25,7 @@ $ ./fastANI -h
 $ ./fastANI -q [QUERY_GENOME] -r [REFERENCE_GENOME] -o [OUTPUT_FILE] 
 ```
 
-Here QUERY\_GENOME and REFERENCE\_GENOME are the query genome assemblies in fasta or multi-fasta format. A gzip'd compressed fasta file is also acceptable.
+Here QUERY\_GENOME and REFERENCE\_GENOME are the query genome assemblies in fasta or multi-fasta format. Gzip'd compressed fasta files are also acceptable.
 
 * **One to Many.** Compute ANI between single query genome and multiple reference genomes:
 
