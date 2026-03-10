@@ -287,7 +287,7 @@ namespace skch
 
             if(seedFind != refSketch.minimizerPosLookupIndex.end())
             {
-              auto hitPositionList = seedFind->second;
+              const auto& hitPositionList = seedFind->second;
 
               //Save the positions (Ignore high frequency hits)
               if(hitPositionList.size() < refSketch.getFreqThreshold())
