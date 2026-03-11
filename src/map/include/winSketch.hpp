@@ -147,6 +147,7 @@ namespace skch
 
           //Open the file using kseq
           gzFile fp = gzopen(fileName.c_str(), "r");
+          gzbuffer(fp, 1 << 20);
           kseq_t *seq = kseq_init(fp);
 
           //size of sequence

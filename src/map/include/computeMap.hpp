@@ -120,6 +120,7 @@ namespace skch
         {
           //Open the file using kseq
           gzFile fp = gzopen(queryFileName.c_str(), "r");
+          gzbuffer(fp, 1 << 20);
           kseq_t *seq = kseq_init(fp);
 
 #ifdef DEBUG
