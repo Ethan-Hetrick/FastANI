@@ -154,17 +154,12 @@ namespace skch
           std::cerr << "INFO, skch::Map::mapQuery, Fragments " << fragmentCount << std::endl;
 #endif
 
-              std::vector<L1_candidateLocus_t> l1Mappings;
-              l1Mappings.reserve(64);
-
-              //Reusable buffers across fragments
+              //Output vector for L2 mappings (reused across fragments)
               MappingResultsVector_t l2Mappings;
               l2Mappings.reserve(8);
 
-              // PERF: reuse QueryMetaData and kseq copy buffer across fragments
-              QueryMetaData <decltype(seq), MinVec_Type> Q;
-              kseq_t seqCopy = *seq;
-              Q.kseq = &seqCopy;
+              std::vector<L1_candidateLocus_t> l1Mappings;
+              l1Mappings.reserve(64);              
 
               for (int i = 0; i < fragmentCount; i++)
               {
@@ -177,13 +172,14 @@ namespace skch
                     metadata.push_back( ContigInfo{seq->name.s, param.minReadLength + (len % param.minReadLength)} );
                 }
 
-                // Update per-fragment view into the same underlying sequence buffer
-                Q.kseq->name = seq->name; // keep same contig name
+                QueryMetaData <decltype(seq), MinVec_Type> Q;
+                auto seqCopy = *seq;
+
+                Q.kseq = &seqCopy;
                 Q.kseq->seq.s = seq->seq.s + i * param.minReadLength;
                 Q.kseq->seq.l = param.minReadLength;
-
                 Q.seqCounter = seqCounter + i;
-
+                
                 //Reuse output vector for L2 mappings (capacity retained)
                 l2Mappings.clear();
 
