@@ -230,12 +230,8 @@ namespace skch
          */
         inline void updateCountersAfterInsert(int status, MIIter_t m)
         {
-          // Cache pivot key/value (avoids repeated iterator deref)
-          const hash_t pivotHash = this->pivot->first;
-          const auto &pivotVal = this->pivot->second;
-
           //Revise internal counters
-          if(m->hash <= pivotHash)
+          if(m->hash <= this->pivot->first)
           {
             if(status == IN::CPLD)
             {
@@ -245,14 +241,14 @@ namespace skch
             else if(status == IN::UNIQ)
             {
               //Pivot needs to be decremented
-              if(pivotVal.wposQ != NAPos && pivotVal.wposR != NAPos)
+              if( (this->pivot->second).wposQ != NAPos && (this->pivot->second).wposR != NAPos)
                 this->sharedSketchElements -= 1;
 
               std::advance(this->pivot, -1);
             }
-            else
+            else if(status == IN::REV)
             {
-              // IN::REV -> Do nothing
+              //Do nothing
             }
           }
         }
@@ -264,11 +260,8 @@ namespace skch
          */
         inline void updateCountersAfterDelete(int status, MIIter_t m)
         {
-          // Cache pivot key once (avoid repeated deref)
-          const hash_t pivotHash = this->pivot->first;
-
           //Revise internal counters
-          if(m->hash <= pivotHash)
+          if(m->hash <= this->pivot->first)
           {
             if(status == OUT::UPD)
             {
@@ -280,13 +273,12 @@ namespace skch
               //Pivot needs to be advanced
               std::advance(this->pivot, 1);
 
-              const auto &pivotVal = this->pivot->second;
-              if(pivotVal.wposQ != NAPos && pivotVal.wposR != NAPos)
+              if( (this->pivot->second).wposQ != NAPos && (this->pivot->second).wposR != NAPos)
                 this->sharedSketchElements += 1;
             }
-            else
+            else if(status == OUT::NOOP)
             {
-              // OUT::NOOP -> Do nothing
+              //Do nothing
             }
           }
         }
