@@ -121,20 +121,28 @@ namespace skch
        * @details   compute and save minimizers from the reference sequence(s)
        *            assuming a fixed window size
        */
+
       void build()
       {
 
         //sequence counter while parsing file
         seqno_t seqCounter = 0;
 
+        // PERF: reserve space to avoid repeated reallocations while collecting minimizers
+        // Heuristic: bacterial refs are a few Mbp; windowSize ~ 24; this gives O(2e5-5e5) minimizers.
+        // If this guess is off, reserve() is still safe (just a hint to the allocator).
+        const size_t estMinimizers = 500000;
+        this->minimizerIndex.reserve(estMinimizers);
+
         if ( omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::Sketch::build, window size for minimizer sampling  = " << param.windowSize << std::endl;
+          std::cerr << "INFO [thread 0], skch::Sketch::build, window size for minimizer sampling  = "
+                    << param.windowSize << std::endl;
 
         for(const auto &fileName : param.refSequences)
         {
 
 #ifdef DEBUG
-        std::cerr << "INFO, skch::Sketch::build, building minimizer index for " << fileName << std::endl;
+          std::cerr << "INFO, skch::Sketch::build, building minimizer index for " << fileName << std::endl;
 #endif
 
           //Open the file using kseq
@@ -144,7 +152,7 @@ namespace skch
           //size of sequence
           offset_t len;
 
-          while ((len = kseq_read(seq)) >= 0) 
+          while ((len = kseq_read(seq)) >= 0)
           {
             //Save the sequence name
             metadata.push_back( ContigInfo{seq->name.s, (offset_t)seq->seq.l} );
@@ -166,12 +174,13 @@ namespace skch
 
           sequencesByFileInfo.push_back(seqCounter);
 
-          kseq_destroy(seq);  
-          gzclose(fp); //close the file handler 
+          kseq_destroy(seq);
+          gzclose(fp); //close the file handler
         }
 
         if ( omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::Sketch::build, minimizers picked from reference = " << minimizerIndex.size() << std::endl;
+          std::cerr << "INFO [thread 0], skch::Sketch::build, minimizers picked from reference = "
+                    << minimizerIndex.size() << std::endl;
 
       }
 
@@ -180,16 +189,23 @@ namespace skch
        */
       void index()
       {
+        // PERF: reduce unordered_map rehashing during index build.
+        // Unique minimizers are often a large fraction of total minimizers in bacterial genomes.
+        // Reserving prevents repeated rehash+alloc cycles.
+        const size_t estUnique = std::max<size_t>(1024, this->minimizerIndex.size() / 2);
+        this->minimizerPosLookupIndex.reserve(estUnique);
+
         //Parse all the minimizers and push into the map
         for(auto &e : minimizerIndex)
         {
           // [hash value -> info about minimizer]
-          minimizerPosLookupIndex[e.hash].push_back( 
+          minimizerPosLookupIndex[e.hash].push_back(
               MinimizerMetaData{e.seqId, e.wpos});
         }
 
         if ( omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::Sketch::index, unique minimizers = " << minimizerPosLookupIndex.size() << std::endl;
+          std::cerr << "INFO [thread 0], skch::Sketch::index, unique minimizers = "
+                    << minimizerPosLookupIndex.size() << std::endl;
       }
 
       /**
