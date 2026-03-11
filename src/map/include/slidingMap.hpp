@@ -230,8 +230,12 @@ namespace skch
          */
         inline void updateCountersAfterInsert(int status, MIIter_t m)
         {
+          // Cache pivot key/value (avoids repeated iterator deref)
+          const hash_t pivotHash = this->pivot->first;
+          const auto &pivotVal = this->pivot->second;
+
           //Revise internal counters
-          if(m->hash <= this->pivot->first)
+          if(m->hash <= pivotHash)
           {
             if(status == IN::CPLD)
             {
@@ -241,14 +245,14 @@ namespace skch
             else if(status == IN::UNIQ)
             {
               //Pivot needs to be decremented
-              if( (this->pivot->second).wposQ != NAPos && (this->pivot->second).wposR != NAPos)
+              if(pivotVal.wposQ != NAPos && pivotVal.wposR != NAPos)
                 this->sharedSketchElements -= 1;
 
               std::advance(this->pivot, -1);
             }
-            else if(status == IN::REV)
+            else
             {
-              //Do nothing
+              // IN::REV -> Do nothing
             }
           }
         }
@@ -260,8 +264,11 @@ namespace skch
          */
         inline void updateCountersAfterDelete(int status, MIIter_t m)
         {
+          // Cache pivot key once (avoid repeated deref)
+          const hash_t pivotHash = this->pivot->first;
+
           //Revise internal counters
-          if(m->hash <= this->pivot->first)
+          if(m->hash <= pivotHash)
           {
             if(status == OUT::UPD)
             {
@@ -273,12 +280,13 @@ namespace skch
               //Pivot needs to be advanced
               std::advance(this->pivot, 1);
 
-              if( (this->pivot->second).wposQ != NAPos && (this->pivot->second).wposR != NAPos)
+              const auto &pivotVal = this->pivot->second;
+              if(pivotVal.wposQ != NAPos && pivotVal.wposR != NAPos)
                 this->sharedSketchElements += 1;
             }
-            else if(status == OUT::NOOP)
+            else
             {
-              //Do nothing
+              // OUT::NOOP -> Do nothing
             }
           }
         }
