@@ -28,18 +28,37 @@ namespace cgi
    *                              and revise reference ids to genome id
    * @param[in/out] shortResults
    */
-  void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::Sketch &refSketch)
-  {
-    for(auto &e : shortResults)
-    {
-      auto referenceSequenceId = e.refSequenceId;
-      auto upperRangeIter = std::upper_bound(refSketch.sequencesByFileInfo.begin(), 
-          refSketch.sequencesByFileInfo.end(),
-          referenceSequenceId);
+void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::Sketch &refSketch)
+{
+  // Cache contig->genome mapping to avoid rebuilding every call.
+  // Safe because it depends only on the reference sketch (contig count + sequencesByFileInfo).
+  static thread_local std::vector<int> contigToGenomeId;
 
-      e.genomeId = std::distance(refSketch.sequencesByFileInfo.begin(), upperRangeIter);
+  const size_t numContigs = refSketch.metadata.size();
+
+  // (Re)build only if size changed (e.g., different reference set)
+  if(contigToGenomeId.size() != numContigs)
+  {
+    contigToGenomeId.assign(numContigs, -1);
+
+    size_t start = 0;
+    for(size_t genomeId = 0; genomeId < refSketch.sequencesByFileInfo.size(); genomeId++)
+    {
+      const size_t end = static_cast<size_t>(refSketch.sequencesByFileInfo[genomeId]);
+      for(size_t contigId = start; contigId < end && contigId < numContigs; contigId++)
+        contigToGenomeId[contigId] = static_cast<int>(genomeId);
+      start = end;
     }
   }
+
+  // Revise genomeId in results (O(1) per result)
+  for(auto &r : shortResults)
+  {
+    const auto contigId = static_cast<size_t>(r.refSequenceId);
+    if(contigId < contigToGenomeId.size())
+      r.genomeId = contigToGenomeId[contigId];
+  }
+}
 
   /**
    * @brief                       compute genome lengths in reference and query genome set
