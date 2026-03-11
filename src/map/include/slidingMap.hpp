@@ -139,19 +139,20 @@ namespace skch
           hash_t hashVal = m->hash;
           int status;
 
+          auto it = slidingWindowMinhashes.find(hashVal);
+
           //if hash doesn't exist in the map, add to it
-          if(slidingWindowMinhashes.find(hashVal) == slidingWindowMinhashes.end())
+          if(it == slidingWindowMinhashes.end())
           {
-            slidingWindowMinhashes[hashVal] = slidingMapContainerValueType{this->NAPos, m->wpos};   //add the hash to window
+            it = slidingWindowMinhashes.emplace(hashVal, slidingMapContainerValueType{this->NAPos, m->wpos}).first;
             status = IN::UNIQ;
           }
           else
           {
-            status = (slidingWindowMinhashes[hashVal].wposR == NAPos) ? IN::CPLD 
-              : IN::REV;
+            status = (it->second.wposR == NAPos) ? IN::CPLD : IN::REV;
 
             //if hash already exists in the map, just revise it
-            slidingWindowMinhashes[hashVal].wposR = m->wpos;
+            it->second.wposR = m->wpos;
           }
 
           updateCountersAfterInsert(status, m);
@@ -169,18 +170,17 @@ namespace skch
           hash_t hashVal = m->hash;
           int status;
           bool pivotDeleteCase = false;
-          
-          assert(this->slidingWindowMinhashes.find(hashVal) != this->slidingWindowMinhashes.end());
 
-          //This hashVal may exist with different wpos from 
-          //reference, do nothing in that case
-          
-          if(this->slidingWindowMinhashes[hashVal].wposR == m->wpos)
+          auto it = this->slidingWindowMinhashes.find(hashVal);
+          assert(it != this->slidingWindowMinhashes.end());
+
+          //This hashVal may exist with different wpos from reference, do nothing in that case
+          if(it->second.wposR == m->wpos)
           {
-            if(this->slidingWindowMinhashes[hashVal].wposQ == NAPos)
+            if(it->second.wposQ == NAPos)
             {
               //Handle pivot deletion as a separate case
-              if(this->slidingWindowMinhashes.find(hashVal) == pivot)
+              if(it == pivot)
               {
                 pivot++;
 
@@ -190,13 +190,13 @@ namespace skch
                 pivotDeleteCase = true;
               }
 
-              this->slidingWindowMinhashes.erase(hashVal);              //Remove the entry from the map
-              status = OUT::DEL; 
+              this->slidingWindowMinhashes.erase(it);   //Remove the entry from the map
+              status = OUT::DEL;
             }
             else
             {
-              this->slidingWindowMinhashes[hashVal].wposR = NAPos;      //Just mark the reference hash absent
-              status = OUT::UPD; 
+              it->second.wposR = NAPos;                 //Just mark the reference hash absent
+              status = OUT::UPD;
             }
           }
           else
