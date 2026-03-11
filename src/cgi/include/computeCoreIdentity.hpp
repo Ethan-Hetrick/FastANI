@@ -70,6 +70,7 @@ void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::S
     {
       //Open the file using kseq
       gzFile fp = gzopen(e.c_str(), "r");
+      gzbuffer(fp, 1 << 20);  // 1MB read buffer
       kseq_t *seq = kseq_init(fp);
       int l; uint64_t genomeLen = 0;
 
@@ -92,12 +93,13 @@ void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::S
       {
         //Open the file using kseq
         gzFile fp = gzopen(e.c_str(), "r");
+        gzbuffer(fp, 1 << 20);  // 1MB read buffer
         kseq_t *seq = kseq_init(fp);
         int l; uint64_t genomeLen = 0;
 
       while ((l = kseq_read(seq)) >= 0) {
         if (l >= parameters.minReadLength) {
-          uint64_t _l_ = (((uint64_t)strlen(seq->seq.s)) / parameters.minReadLength) * parameters.minReadLength;
+          uint64_t _l_ = (((uint64_t)seq->seq.l) / parameters.minReadLength) * parameters.minReadLength;
           genomeLen = genomeLen + _l_;
         }
       }
