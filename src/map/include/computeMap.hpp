@@ -526,11 +526,14 @@ namespace skch
       {
         float bestNucIdentity = 0;
 
-        //Scan through the mappings to check best identity mapping
-        for(auto &e : l2Mappings)
+        //Only compute best identity when we need the "top 1%" filter
+        if(!param.reportAll)
         {
-          if(e.nucIdentity > bestNucIdentity)
-            bestNucIdentity = e.nucIdentity;
+          for(auto &e : l2Mappings)
+          {
+            if(e.nucIdentity > bestNucIdentity)
+              bestNucIdentity = e.nucIdentity;
+          }
         }
 
         //Print the results
