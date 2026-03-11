@@ -88,83 +88,88 @@ namespace skch
      * @param[in]   windowSize
      * @param[in]   seqCounter      current sequence number, used while saving the position of minimizer
      */
-    template <typename T, typename KSEQ>
-      inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize, 
-          int windowSize,
-          int alphabetSize,
-          seqno_t seqCounter)
+template <typename T, typename KSEQ>
+  inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize, 
+      int windowSize,
+      int alphabetSize,
+      seqno_t seqCounter)
+{
+  /**
+   * Double-ended queue (saves minimum at front end)
+   * Saves pair of the minimizer and the position of hashed kmer in the sequence
+   * Position of kmer is required to discard kmers that fall out of current window
+   */
+  std::deque< std::pair<MinimizerInfo, offset_t> > Q;
+
+  makeUpperCase(kseq);
+
+  //length of the sequencd
+  offset_t len = kseq->seq.l;
+
+  //Compute reverse complement of seq (reuse buffer to avoid per-call heap alloc)
+  static thread_local std::vector<char> seqRevBuf;
+  char *seqRev = nullptr;
+
+  if(alphabetSize == 4) //not protein
+  {
+    if(seqRevBuf.size() < static_cast<size_t>(len))
+      seqRevBuf.resize(static_cast<size_t>(len));
+    seqRev = seqRevBuf.data();
+
+    CommonFunc::reverseComplement(kseq->seq.s, seqRev, len);
+  }
+
+  for(offset_t i = 0; i < len - kmerSize + 1; i++)
+  {
+    //The serial number of current sliding window
+    //First valid window appears when i = windowSize - 1
+    offset_t currentWindowId = i - windowSize + 1;
+
+    //Hash kmers
+    hash_t hashFwd = CommonFunc::getHash(kseq->seq.s + i, kmerSize); 
+    hash_t hashBwd;
+
+    if(alphabetSize == 4)
+      hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
+    else  //proteins
+      hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
+
+    //Consider non-symmetric kmers only
+    if(hashBwd != hashFwd)
+    {
+      //Take minimum value of kmer and its reverse complement
+      hash_t currentKmer = std::min(hashFwd, hashBwd);
+
+      //If front minimum is not in the current window, remove it
+      while(!Q.empty() && Q.front().second <=  i - windowSize)
+        Q.pop_front();
+
+      //Hashes less than equal to currentKmer are not required
+      //Remove them from Q (back)
+      while(!Q.empty() && Q.back().first.hash >= currentKmer) 
+        Q.pop_back();
+
+      //Push currentKmer and position to back of the queue
+      //-1 indicates the dummy window # (will be updated later)
+      Q.push_back( std::make_pair(
+            MinimizerInfo{currentKmer, seqCounter, -1},
+            i)); 
+
+      //Select the minimizer from Q and put into index
+      if(currentWindowId >= 0)
       {
-        /**
-         * Double-ended queue (saves minimum at front end)
-         * Saves pair of the minimizer and the position of hashed kmer in the sequence
-         * Position of kmer is required to discard kmers that fall out of current window
-         */
-        std::deque< std::pair<MinimizerInfo, offset_t> > Q;
-
-        makeUpperCase(kseq);
-
-        //length of the sequencd
-        offset_t len = kseq->seq.l;
-
-        //Compute reverse complement of seq
-        char *seqRev = new char[len];
-
-        if(alphabetSize == 4) //not protein
-          CommonFunc::reverseComplement(kseq->seq.s, seqRev, len);
-
-        for(offset_t i = 0; i < len - kmerSize + 1; i++)
+        //We save the minimizer if we are seeing it for first time
+        if(minimizerIndex.empty() || minimizerIndex.back() != Q.front().first)
         {
-          //The serial number of current sliding window
-          //First valid window appears when i = windowSize - 1
-          offset_t currentWindowId = i - windowSize + 1;
-
-          //Hash kmers
-          hash_t hashFwd = CommonFunc::getHash(kseq->seq.s + i, kmerSize); 
-          hash_t hashBwd;
-
-          if(alphabetSize == 4)
-            hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
-          else  //proteins
-            hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
-
-          //Consider non-symmetric kmers only
-          if(hashBwd != hashFwd)
-          {
-            //Take minimum value of kmer and its reverse complement
-            hash_t currentKmer = std::min(hashFwd, hashBwd);
-
-            //If front minimum is not in the current window, remove it
-            while(!Q.empty() && Q.front().second <=  i - windowSize)
-              Q.pop_front();
-
-            //Hashes less than equal to currentKmer are not required
-            //Remove them from Q (back)
-            while(!Q.empty() && Q.back().first.hash >= currentKmer) 
-              Q.pop_back();
-
-            //Push currentKmer and position to back of the queue
-            //-1 indicates the dummy window # (will be updated later)
-            Q.push_back( std::make_pair(
-                  MinimizerInfo{currentKmer, seqCounter, -1},
-                  i)); 
-
-            //Select the minimizer from Q and put into index
-            if(currentWindowId >= 0)
-            {
-              //We save the minimizer if we are seeing it for first time
-              if(minimizerIndex.empty() || minimizerIndex.back() != Q.front().first)
-              {
-                //Update the window position in this minimizer
-                //This step also ensures we don't re-insert the same minimizer again
-                Q.front().first.wpos = currentWindowId;     
-                minimizerIndex.push_back(Q.front().first);
-              }
-            }
-          }
+          //Update the window position in this minimizer
+          //This step also ensures we don't re-insert the same minimizer again
+          Q.front().first.wpos = currentWindowId;     
+          minimizerIndex.push_back(Q.front().first);
         }
-
-        delete [] seqRev;
       }
+    }
+  }
+}
 
     /**
      * @brief       overloaded function for case where seq. counter does not matter
