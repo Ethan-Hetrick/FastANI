@@ -158,8 +158,10 @@ namespace skch
               MappingResultsVector_t l2Mappings;
               l2Mappings.reserve(8);
 
+              std::vector<L1_candidateLocus_t> l1Mappings;
+              l1Mappings.reserve(64);              
+
               for (int i = 0; i < fragmentCount; i++)
-              //for (int i = 0; i < 5; i++)
               {
                 //Record each fragment's length coverage in genome for supporting visualization
                 if(param.visualize)
@@ -182,7 +184,7 @@ namespace skch
                 l2Mappings.clear();
 
                 //Map this sequence
-                mapSingleQuerySeq(Q, l2Mappings, outstrm);
+                mapSingleQuerySeq(Q, l1Mappings, l2Mappings, outstrm);
 
                 //Write mapping results to file
                 reportL2Mappings(l2Mappings, outstrm);
@@ -206,17 +208,18 @@ namespace skch
        * @param[out]  l2Mappings  Mappings computed after L2 stage
        */
       template<typename Q_Info>
-        inline void mapSingleQuerySeq(Q_Info &Q, MappingResultsVector_t &l2Mappings, std::ofstream &outstrm)
+        inline void mapSingleQuerySeq(Q_Info &Q,
+                                      std::vector<L1_candidateLocus_t> &l1Mappings,
+                                      MappingResultsVector_t &l2Mappings,
+                                      std::ofstream &outstrm)
         {
 #if ENABLE_TIME_PROFILE_L1_L2
           auto t0 = skch::Time::now();
-#endif
-
-#if ENABLE_TIME_PROFILE_L1_L2
           auto t1 = skch::Time::now();
 #endif
-          //L1 Mapping
-          std::vector<L1_candidateLocus_t> l1Mappings; 
+
+          //L1 Mapping (reuse buffer)
+          l1Mappings.clear();
           doL1Mapping(Q, l1Mappings);
 
 #if ENABLE_TIME_PROFILE_L1_L2
@@ -234,8 +237,8 @@ namespace skch
             int countL1Candidates = l1Mappings.size();
 
             std::cerr << Q.kseq->name.s << " " << Q.kseq->seq.l
-              << " " << countL1Candidates 
-              << " " << timeSpentL1.count() 
+              << " " << countL1Candidates
+              << " " << timeSpentL1.count()
               << " " << timeSpentL2.count()
               << " " << timeSpentMappingRead.count()
               << "\n";
