@@ -28,37 +28,46 @@ namespace cgi
    *                              and revise reference ids to genome id
    * @param[in/out] shortResults
    */
-void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::Sketch &refSketch)
-{
-  // Cache contig->genome mapping to avoid rebuilding every call.
-  // Safe because it depends only on the reference sketch (contig count + sequencesByFileInfo).
-  static thread_local std::vector<int> contigToGenomeId;
-
-  const size_t numContigs = refSketch.metadata.size();
-
-  // (Re)build only if size changed (e.g., different reference set)
-  if(contigToGenomeId.size() != numContigs)
+  void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults,
+                             skch::Sketch &refSketch)
   {
-    contigToGenomeId.assign(numContigs, -1);
-
-    size_t start = 0;
-    for(size_t genomeId = 0; genomeId < refSketch.sequencesByFileInfo.size(); genomeId++)
-    {
-      const size_t end = static_cast<size_t>(refSketch.sequencesByFileInfo[genomeId]);
-      for(size_t contigId = start; contigId < end && contigId < numContigs; contigId++)
-        contigToGenomeId[contigId] = static_cast<int>(genomeId);
-      start = end;
-    }
+      static thread_local std::vector<int> contigToGenomeId;
+  
+      const size_t numContigs = refSketch.metadata.size();
+  
+      if (contigToGenomeId.size() != numContigs)
+      {
+          contigToGenomeId.assign(numContigs, -1);
+  
+          size_t start = 0;
+          for (size_t genomeId = 0;
+               genomeId < refSketch.sequencesByFileInfo.size();
+               genomeId++)
+          {
+              const size_t end =
+                  static_cast<size_t>(refSketch.sequencesByFileInfo[genomeId]);
+  
+              for (size_t contigId = start;
+                   contigId < end && contigId < numContigs;
+                   contigId++)
+              {
+                  contigToGenomeId[contigId] =
+                      static_cast<int>(genomeId);
+              }
+  
+              start = end;
+          }
+      }
+  
+      for (auto &r : shortResults)
+      {
+          const size_t contigId =
+              static_cast<size_t>(r.refSequenceId);
+  
+          if (contigId < contigToGenomeId.size())
+              r.genomeId = contigToGenomeId[contigId];
+      }
   }
-
-  // Revise genomeId in results (O(1) per result)
-  for(auto &r : shortResults)
-  {
-    const auto contigId = static_cast<size_t>(r.refSequenceId);
-    if(contigId < contigToGenomeId.size())
-      r.genomeId = contigToGenomeId[contigId];
-  }
-}
 
   /**
    * @brief                       compute genome lengths in reference and query genome set
@@ -76,7 +85,7 @@ void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::S
 
       while ((l = kseq_read(seq)) >= 0) {
         if (l >= parameters.minReadLength) {
-          uint64_t _l_ = (((uint64_t)strlen(seq->seq.s)) / parameters.minReadLength) * parameters.minReadLength;
+          uint64_t _l_ = (((uint64_t)seq->seq.l) / parameters.minReadLength) * parameters.minReadLength;
           genomeLen = genomeLen + _l_;
         }
       }
@@ -223,34 +232,30 @@ void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::S
      */
     reviseRefIdToGenomeId(shortResults, refSketch);
 
-
-    //We need best reciprocal identity match for each genome, query pair
     std::vector<MappingResult_CGI> mappings_1way;
     std::vector<MappingResult_CGI> mappings_2way;
 
-    ///1. Code below fetches best identity match for each genome, query pair
-    //For each query sequence, best match in the reference is preserved
+    // --- Stage 1: best match per genome/query pair ---
+    std::sort(shortResults.begin(), shortResults.end(), cmp_query_bucket);
+    
+    for(auto &e : shortResults)
     {
-      //Sort the vector shortResults
-      std::sort(shortResults.begin(), shortResults.end(), cmp_query_bucket);
-
-      for(auto &e : shortResults)
-      {
         if(mappings_1way.empty())
-          mappings_1way.push_back(e);
-
-        else if ( !(
-              e.genomeId == mappings_1way.back().genomeId && 
-              e.querySeqId == mappings_1way.back().querySeqId))
+            mappings_1way.push_back(e);
+    
+        else if(!(e.genomeId == mappings_1way.back().genomeId &&
+                  e.querySeqId == mappings_1way.back().querySeqId))
         {
-          mappings_1way.emplace_back(e);
+            mappings_1way.emplace_back(e);
         }
         else
         {
-          mappings_1way.back() = e;
+            mappings_1way.back() = e;
         }
-      }
     }
+
+    // std::cerr << "DEBUG: mappings_2way size (initial) = "
+    //       << mappings_2way.size() << std::endl;
 
     ///2. Now, we compute 2-way ANI
     //For each mapped region, and within a reference bin bucket, single best query mapping is preserved
