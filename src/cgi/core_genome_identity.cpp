@@ -47,8 +47,9 @@ int core_genome_identity(int argc, char **argv)
   std::vector <skch::Parameters> parameters_split (parameters.threads);
   cgi::splitReferenceGenomes (parameters, parameters_split);
 
-  //Final output vector of ANI computation
-  std::vector<cgi::CGI_Results> finalResults;
+  //Final output vectors of ANI computation (one per thread; merged after parallel region)
+  std::vector< std::vector<cgi::CGI_Results> > finalResults_by_thread(parameters.threads);
+
   std::vector<bool> sanityCheck(parameters.threads, true);
   std::vector<float> ratioDiffs(parameters.threads, true);
 
@@ -109,18 +110,26 @@ int core_genome_identity(int argc, char **argv)
 
       cgi::correctRefGenomeIds (finalResults_local);
 
-#pragma omp critical
-    {
-      finalResults.insert (finalResults.end(), finalResults_local.begin(), finalResults_local.end());
-    }
+      cgi::correctRefGenomeIds (finalResults_local);
 
-#pragma omp critical
-    {
+      // Store this thread's results without locking; merge after parallel region
+      finalResults_by_thread[i] = std::move(finalResults_local);
+
       std::cerr << "INFO [thread " << omp_get_thread_num() << "], skch::main, ready to exit the loop" << std::endl;
-    }
   }
 
   std::cerr << "INFO, skch::main, parallel_for execution finished" << std::endl;
+
+  // Merge per-thread results (single-threaded, deterministic)
+  std::vector<cgi::CGI_Results> finalResults;
+
+  size_t total = 0;
+  for(const auto &v : finalResults_by_thread)
+    total += v.size();
+  finalResults.reserve(total);
+
+  for(auto &v : finalResults_by_thread)
+    finalResults.insert(finalResults.end(), v.begin(), v.end());
 
   for(auto i = 0; i < parameters.threads;i++){
       if(sanityCheck[i] == false){
