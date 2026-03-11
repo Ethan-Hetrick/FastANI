@@ -3,6 +3,7 @@ project(FastANI
     VERSION 1.34
     DESCRIPTION "Fast computation of whole-genome Average Nucleotide Identity (ANI)."
     LANGUAGES CXX)
+set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -flto -march=native")
 #
 # Main executable
 add_executable(fastANI src/cgi/core_genome_identity.cpp src/cgi/main.cpp)
