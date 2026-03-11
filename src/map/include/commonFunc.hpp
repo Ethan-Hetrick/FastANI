@@ -101,7 +101,16 @@ template <typename T, typename KSEQ>
    */
   std::deque< std::pair<MinimizerInfo, offset_t> > Q;
 
-  makeUpperCase(kseq);
+  // PERF: avoid uppercasing if sequence already appears uppercase
+  bool needsUpper = false;
+  const int scan = std::min<int>(kseq->seq.l, 4096);
+  for(int j = 0; j < scan; j++)
+  {
+    char c = kseq->seq.s[j];
+    if(c >= 'a' && c <= 'z') { needsUpper = true; break; }
+  }
+  if(needsUpper)
+    makeUpperCase(kseq);
 
   //length of the sequencd
   offset_t len = kseq->seq.l;
