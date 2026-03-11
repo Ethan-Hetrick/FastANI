@@ -154,6 +154,10 @@ namespace skch
           std::cerr << "INFO, skch::Map::mapQuery, Fragments " << fragmentCount << std::endl;
 #endif
 
+              //Output vector for L2 mappings (reused across fragments)
+              MappingResultsVector_t l2Mappings;
+              l2Mappings.reserve(8);
+
               for (int i = 0; i < fragmentCount; i++)
               //for (int i = 0; i < 5; i++)
               {
@@ -173,9 +177,9 @@ namespace skch
                 Q.kseq->seq.s = seq->seq.s + i * param.minReadLength;
                 Q.kseq->seq.l = param.minReadLength;
                 Q.seqCounter = seqCounter + i;
-
-                //Output vector for L2 mappings
-                MappingResultsVector_t l2Mappings;
+                
+                //Reuse output vector for L2 mappings (capacity retained)
+                l2Mappings.clear();
 
                 //Map this sequence
                 mapSingleQuerySeq(Q, l2Mappings, outstrm);
@@ -254,9 +258,13 @@ namespace skch
         {
           //Vector of positions of all the hits 
           std::vector<MinimizerMetaData> seedHitsL1;
+          seedHitsL1.reserve(20000);
+
+          // PERF: reuse query minimizer buffer across fragments (capacity retained)
+          Q.minimizerTableQuery.clear();
+          Q.minimizerTableQuery.reserve(4096);
 
           ///1. Compute the minimizers
-
           CommonFunc::addMinimizers(Q.minimizerTableQuery, Q.kseq, param.kmerSize, param.windowSize, param.alphabetSize);
 
 #ifdef DEBUG
@@ -277,8 +285,6 @@ namespace skch
           //Ignore the query in this case
           if(Q.sketchSize == 0)
             return;
-
-          int totalMinimizersPicked = 0;
 
           for(auto it = Q.minimizerTableQuery.begin(); it != uniqEndIter; it++)
           {
@@ -323,31 +329,38 @@ namespace skch
           {
             if(std::distance(it, seedHitsL1.end()) >= minimumHits)
             {
-              auto it2 = it + minimumHits -1;
-              //[it .. it2] are 'minimumHits' consecutive hits 
+              auto it2 = it + minimumHits - 1;
+              //[it .. it2] are 'minimumHits' consecutive hits
 
               //Check if consecutive hits are close enough
-              //NOTE: hits may span more than a read length for a valid match, as we keep window positions 
+              //NOTE: hits may span more than a read length for a valid match, as we keep window positions
               //      for each minimizer
               if(it2->seqId == it->seqId && it2->wpos - it->wpos < Q.kseq->seq.l)
               {
                 //Save <1st pos --- 2nd pos>
-                L1_candidateLocus_t candidate{it->seqId, 
+                L1_candidateLocus_t candidate{it->seqId,
                     std::max(0, it2->wpos - offset_t(Q.kseq->seq.l) + 1), it->wpos};
 
                 //Check if this candidate overlaps with last inserted one
-                auto lst = l1Mappings.end(); lst--;
-
-                //match seq_no and see if this candidate begins before last element ends
-                if( l1Mappings.size() > 0 
-                    && candidate.seqId == lst->seqId 
-                    && lst->rangeEndPos >= candidate.rangeStartPos)
+                if(!l1Mappings.empty())
                 {
-                  //Push the end pos of last candidate locus further out
-                  lst->rangeEndPos = std::max(candidate.rangeEndPos, lst->rangeEndPos);
+                  auto &lst = l1Mappings.back();
+
+                  //match seq_no and see if this candidate begins before last element ends
+                  if(candidate.seqId == lst.seqId && lst.rangeEndPos >= candidate.rangeStartPos)
+                  {
+                    //Push the end pos of last candidate locus further out
+                    lst.rangeEndPos = std::max(candidate.rangeEndPos, lst.rangeEndPos);
+                  }
+                  else
+                  {
+                    l1Mappings.push_back(candidate);
+                  }
                 }
                 else
+                {
                   l1Mappings.push_back(candidate);
+                }
               }
             }
           }
