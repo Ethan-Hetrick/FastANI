@@ -165,6 +165,8 @@ namespace skch
        help_cmd,
        ref_cmd,
        refList_cmd,
+       write_ref_sketch_cmd,
+       sketch_cmd,
        qry_cmd,
        qryList_cmd,
        kmer_cmd,
@@ -176,8 +178,7 @@ namespace skch
        matrix_cmd,
        output_cmd,
        sanitycheck_cmd,
-       version_cmd,
-       write_ref_sketch_cmd
+       version_cmd
       );
 
     //with formatting options
@@ -212,6 +213,9 @@ namespace skch
       parameters.writeRefSketchMode = true;
     }
 
+    if(!parameters.sketchFile.empty())
+      parameters.loadSketchMode = true;
+
     if (!parameters.loadSketchMode && refName == "" && refList == "")
     {
       std::cerr << "Provide reference file (s)\n";
@@ -224,10 +228,13 @@ namespace skch
       exit(1);
     }
 
-    if (refName != "")
-      parameters.refSequences.push_back(refName);
-    else
-      parseFileList(refList, parameters.refSequences);
+    if (!parameters.loadSketchMode)
+    {
+      if (refName != "")
+        parameters.refSequences.push_back(refName);
+      else
+        parseFileList(refList, parameters.refSequences);
+    }
 
     if (!parameters.writeRefSketchMode)
     {
@@ -252,10 +259,21 @@ namespace skch
     }
     else
     {
-      validateInputFiles(parameters.querySequences, parameters.refSequences);
+      if(parameters.writeRefSketchMode)
+      {
+        std::vector<std::string> emptyQueries;
+        validateInputFiles(emptyQueries, parameters.refSequences);
+      }
+      else if(parameters.loadSketchMode)
+      {
+        std::vector<std::string> emptyRefs;
+        validateInputFiles(parameters.querySequences, emptyRefs);
+      }
+      else
+      {
+        validateInputFiles(parameters.querySequences, parameters.refSequences);
+      }
     }
-    if(!parameters.sketchFile.empty())
-      parameters.loadSketchMode = true;
 
     printCmdOptions(parameters);
   }
