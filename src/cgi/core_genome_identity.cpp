@@ -174,6 +174,19 @@ int core_genome_identity(int argc, char **argv)
 
   std::cerr << "INFO, skch::main, parallel_for execution finished" << std::endl;
 
+  if(parameters.loadSketchMode)
+  {
+    parameters.refSequences.clear();
+  
+    for(uint64_t i = 0; i < parameters.threads; i++)
+    {
+      for(const auto &name : parameters_split[i].refSequences)
+      {
+        parameters.refSequences.push_back(name);
+      }
+    }
+  }
+  
   if(parameters.writeRefSketchMode)
     return 0;
 
