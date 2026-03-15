@@ -211,10 +211,6 @@ int core_genome_identity(int argc, char **argv)
   }
 
   std::unordered_map<std::string, uint64_t> genomeLengths;
-  
-  cgi::computeGenomeLengths(parameters, genomeLengths);
-  
-  std::unordered_map<std::string, uint64_t> genomeLengths;
   cgi::computeGenomeLengths(parameters, genomeLengths);
 
   //report output in file
