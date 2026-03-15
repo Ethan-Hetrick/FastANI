@@ -125,8 +125,6 @@ int core_genome_identity(int argc, char **argv)
 
       cgi::correctRefGenomeIds (finalResults_local);
 
-      cgi::correctRefGenomeIds (finalResults_local);
-
       // Store this thread's results without locking; merge after parallel region
       finalResults_by_thread[i] = std::move(finalResults_local);
 
