@@ -35,6 +35,8 @@ namespace skch
     std::string outFileName;                          //output file name
     std::string writeRefSketchFile = "";
     bool writeRefSketchMode = false;
+    std::string sketchFile;
+    bool loadSketchMode;
     bool reportAll;                                   //Report all alignments if this is true
     bool visualize;                                   //Visualize the conserved regions of two genomes
     bool matrixOutput;                                //report fastani results as lower triangular matrix

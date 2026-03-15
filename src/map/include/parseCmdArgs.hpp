@@ -130,6 +130,8 @@ namespace skch
     parameters.sanityCheck = false;
     parameters.writeRefSketchFile = "";
     parameters.writeRefSketchMode = false;
+    parameters.sketchFile = "";
+    parameters.loadSketchMode = false;
 
     std::string refName, refList;
     std::string qryName, qryList;
@@ -151,6 +153,9 @@ namespace skch
     auto output_cmd = (clipp::option("-o", "--output") & clipp::value("value", parameters.outFileName)) % "output file name";
     auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
     auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
+    auto sketch_cmd =
+      (clipp::option("--sketch") & clipp::value("value", parameters.sketchFile))
+      % "load reference sketches from file prefix instead of rebuilding";
     auto write_ref_sketch_cmd =
       (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile))
       % "write reference sketches to file and exit";
@@ -207,7 +212,7 @@ namespace skch
       parameters.writeRefSketchMode = true;
     }
 
-    if (refName == "" && refList == "")
+    if (!parameters.loadSketchMode && refName == "" && refList == "")
     {
       std::cerr << "Provide reference file (s)\n";
       exit(1);
@@ -249,6 +254,8 @@ namespace skch
     {
       validateInputFiles(parameters.querySequences, parameters.refSequences);
     }
+    if(!parameters.sketchFile.empty())
+      parameters.loadSketchMode = true;
 
     printCmdOptions(parameters);
   }
