@@ -257,22 +257,22 @@ namespace skch
       std::vector<std::string> emptyQueries;
       validateInputFiles(emptyQueries, parameters.refSequences);
     }
+    else if(parameters.loadSketchMode)
+    {
+      for(auto &e : parameters.querySequences)
+      {
+        std::ifstream in(e);
+        if(in.fail())
+        {
+          std::cerr << "ERROR, skch::validateInputFiles, Could not open " << e << std::endl;
+          exit(1);
+        }
+      }
+    }
     else
     {
-      if(parameters.writeRefSketchMode)
-      {
-        std::vector<std::string> emptyQueries;
-        validateInputFiles(emptyQueries, parameters.refSequences);
-      }
-      else if(parameters.loadSketchMode)
-      {
-        std::vector<std::string> emptyRefs;
-        validateInputFiles(parameters.querySequences, emptyRefs);
-      }
-      else
-      {
-        validateInputFiles(parameters.querySequences, parameters.refSequences);
-      }
+      validateInputFiles(parameters.querySequences, parameters.refSequences);
+    }
     }
 
     printCmdOptions(parameters);

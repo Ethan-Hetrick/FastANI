@@ -113,6 +113,18 @@ namespace skch
             this->index();
             this->computeFreqHist();
           }
+          
+      Sketch(const skch::Parameters &p, bool deferBuild)
+        :
+          param(p)
+      {
+        if(!deferBuild)
+        {
+          this->build();
+          this->index();
+          this->computeFreqHist();
+        }
+      }
 
       private:
 

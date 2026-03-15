@@ -9,6 +9,7 @@
 #include <chrono>
 #include <functional>
 #include <omp.h>
+#include <memory>
 
 //Own includes
 #include "map/include/map_parameters.hpp"
@@ -64,8 +65,28 @@ int core_genome_identity(int argc, char **argv)
     auto t0 = skch::Time::now();
 
     //Build the sketch for reference
-    skch::Sketch referSketch(parameters_split[i]);
 
+    std::unique_ptr<skch::Sketch> referSketchPtr;
+
+    if(parameters.loadSketchMode)
+    {
+      std::string inSketchFile =
+        parameters.sketchFile + "." + std::to_string(i);
+    
+      referSketchPtr = std::make_unique<skch::Sketch>(
+          skch::loadReferenceSketch(parameters_split[i], inSketchFile));
+    
+      std::cerr << "INFO [thread " << omp_get_thread_num()
+                << "], skch::main, loaded sketch from "
+                << inSketchFile << std::endl;
+    }
+    else
+    {
+      referSketchPtr = std::make_unique<skch::Sketch>(parameters_split[i]);
+    }
+    
+    skch::Sketch &referSketch = *referSketchPtr;
+    
     if(parameters.writeRefSketchMode)
     {
       std::string outSketchFile =
