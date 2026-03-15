@@ -96,12 +96,13 @@ namespace cgi
       gzclose(fp); //close the file handler 
     }
 
-    for(auto &e : parameters.refSequences)
+    if(!parameters.loadSketchMode)
     {
-      if( genomeLengths.find(e) == genomeLengths.end() )
+      for(auto &e : parameters.refSequences)
       {
-        //Open the file using kseq
-        gzFile fp = gzopen(e.c_str(), "r");
+        if( genomeLengths.find(e) == genomeLengths.end() )
+        {
+          gzFile fp = gzopen(e.c_str(), "r");
         gzbuffer(fp, 1 << 20);  // 1MB read buffer
         kseq_t *seq = kseq_init(fp);
         int l; uint64_t genomeLen = 0;

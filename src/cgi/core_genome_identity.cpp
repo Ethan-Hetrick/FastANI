@@ -186,7 +186,7 @@ int core_genome_identity(int argc, char **argv)
       }
     }
   }
-  
+
   if(parameters.writeRefSketchMode)
     return 0;
 
@@ -210,8 +210,36 @@ int core_genome_identity(int argc, char **argv)
     }
   }
 
-  std::unordered_map<std::string, uint64_t> genomeLengths;    // name of genome -> length
+  std::unordered_map<std::string, uint64_t> genomeLengths;
+  
   cgi::computeGenomeLengths(parameters, genomeLengths);
+  
+  if(parameters.loadSketchMode)
+  {
+    genomeLengths.clear();
+  
+    for(const auto &q : parameters.querySequences)
+    {
+      // keep query lengths from FASTA
+      // easiest approach: re-read only queries using existing function
+    }
+  
+    for(uint64_t i = 0; i < parameters.threads; i++)
+    {
+      size_t prev = 0;
+      for(size_t g = 0; g < parameters_split[i].sequencesByFileInfo.size(); g++)
+      {
+        size_t end = static_cast<size_t>(parameters_split[i].sequencesByFileInfo[g]);
+        uint64_t genomeLen = 0;
+  
+        for(size_t c = prev; c < end && c < parameters_split[i].refSketchMetadata.size(); c++)
+          genomeLen += parameters_split[i].refSketchMetadata[c].len;
+  
+        genomeLengths[parameters_split[i].refSequences[g]] = genomeLen;
+        prev = end;
+      }
+    }
+  }
 
   //report output in file
   cgi::outputCGI(parameters, genomeLengths, finalResults, fileName);
