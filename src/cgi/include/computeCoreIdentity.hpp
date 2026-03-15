@@ -121,6 +121,7 @@ namespace cgi
       }
     }
   }
+}
 
   /**
    * @brief                             output blast tabular mappings for visualization 
