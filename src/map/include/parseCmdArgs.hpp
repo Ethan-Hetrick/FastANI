@@ -151,6 +151,9 @@ namespace skch
     auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
     auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
 
+    option("--write-ref-sketch")
+      & value("file", parameters.writeRefSketchFile)
+      .doc("Write reference sketches to file and exit"),
     auto cli =
       (
        help_cmd,
@@ -207,6 +210,10 @@ namespace skch
     {
       std::cerr << "Provide query file (s)\n";
       exit(1);
+    }
+    if(!parameters.writeRefSketchFile.empty())
+    {
+        parameters.writeRefSketchMode = true;
     }
 
     if (refName != "")
