@@ -17,7 +17,8 @@
 #include "map/include/winSketch.hpp"
 #include "map/include/computeMap.hpp"
 #include "map/include/commonFunc.hpp"
-#include "cgi/include/computeCoreIdentity.hpp" 
+#include "cgi/include/computeCoreIdentity.hpp"
+#include "map/include/sketch_io.hpp"
 
 inline bool file_exists (const std::string& name) {
     std::ifstream f(name.c_str());
@@ -64,6 +65,20 @@ int core_genome_identity(int argc, char **argv)
 
     //Build the sketch for reference
     skch::Sketch referSketch(parameters_split[i]);
+
+    if(parameters.writeRefSketchMode)
+    {
+      std::string outSketchFile =
+        parameters.writeRefSketchFile + "." + std::to_string(i);
+    
+      skch::saveReferenceSketch(referSketch, parameters_split[i], outSketchFile);
+    
+      std::cerr << "INFO [thread " << omp_get_thread_num()
+                << "], skch::main, wrote sketch to "
+                << outSketchFile << std::endl;
+    
+      continue;
+    }
 
     std::chrono::duration<double> timeRefSketch = skch::Time::now() - t0;
 

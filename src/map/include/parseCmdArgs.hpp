@@ -59,9 +59,9 @@ namespace skch
   template <typename VEC>
     void validateInputFiles(VEC &querySequences, VEC &refSequences)
     {
-      if (querySequences.size() == 0 || refSequences.size() == 0)
+      if (refSequences.size() == 0)
       {
-        std::cerr << "ERROR, skch::validateInputFiles, Count of query and ref genomes should be non-zero" << std::endl;
+        std::cerr << "ERROR, skch::validateInputFiles, Count of ref genomes should be non-zero" << std::endl;
         exit(1);
       }
 
@@ -150,10 +150,10 @@ namespace skch
     auto output_cmd = (clipp::option("-o", "--output") & clipp::value("value", parameters.outFileName)) % "output file name";
     auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
     auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
+    auto write_ref_sketch_cmd =
+    (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile))
+    % "write reference sketches to file and exit";
 
-    option("--write-ref-sketch")
-      & value("file", parameters.writeRefSketchFile)
-      .doc("Write reference sketches to file and exit"),
     auto cli =
       (
        help_cmd,
@@ -170,7 +170,8 @@ namespace skch
        matrix_cmd,
        output_cmd,
        sanitycheck_cmd,
-       version_cmd
+       version_cmd,
+       write_ref_sketch_cmd
       );
 
     //with formatting options
@@ -206,7 +207,7 @@ namespace skch
       exit(1);
     }
 
-    if (qryName == "" && qryList == "")
+    if (!parameters.writeRefSketchMode && qryName == "" && qryList == "")
     {
       std::cerr << "Provide query file (s)\n";
       exit(1);
@@ -221,8 +222,15 @@ namespace skch
     else
       parseFileList(refList, parameters.refSequences);
 
-    if (qryName != "")
-      parameters.querySequences.push_back(qryName);
+    if(parameters.writeRefSketchMode)
+    {
+      std::vector<std::string> emptyQueries;
+      validateInputFiles(emptyQueries, parameters.refSequences);
+    }
+    else
+    {
+      validateInputFiles(parameters.querySequences, parameters.refSequences);
+    }
     else
       parseFileList(qryList, parameters.querySequences);
 
