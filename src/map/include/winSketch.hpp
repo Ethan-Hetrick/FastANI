@@ -113,7 +113,7 @@ namespace skch
             this->index();
             this->computeFreqHist();
           }
-          
+
       Sketch(const skch::Parameters &p, bool deferBuild)
         :
           param(p)
@@ -305,6 +305,13 @@ namespace skch
       {
         return this->minimizerIndex.end();
       }
+
+      friend void saveReferenceSketch(const Sketch& sketch,
+                                const Parameters& parameters,
+                                const std::string& outFile);
+
+      friend Sketch loadReferenceSketch(const Parameters& parameters,
+                                        const std::string& inFile);
 
       int getFreqThreshold() const
       {

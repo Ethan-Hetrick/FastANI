@@ -273,7 +273,6 @@ namespace skch
     {
       validateInputFiles(parameters.querySequences, parameters.refSequences);
     }
-    }
 
     printCmdOptions(parameters);
   }
