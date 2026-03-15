@@ -200,6 +200,11 @@ namespace skch
       std::cerr << "version 1.33\n\n";
       exit(0);
     }
+    
+    if(!parameters.writeRefSketchFile.empty())
+    {
+        parameters.writeRefSketchMode = true;
+    }
 
     if (refName == "" && refList == "")
     {
@@ -212,27 +217,28 @@ namespace skch
       std::cerr << "Provide query file (s)\n";
       exit(1);
     }
-    if(!parameters.writeRefSketchFile.empty())
-    {
-        parameters.writeRefSketchMode = true;
-    }
 
     if (refName != "")
       parameters.refSequences.push_back(refName);
     else
       parseFileList(refList, parameters.refSequences);
-
-    if(parameters.writeRefSketchMode)
+    if(!parameters.writeRefSketchFile.empty())
     {
-      std::vector<std::string> emptyQueries;
-      validateInputFiles(emptyQueries, parameters.refSequences);
+      parameters.writeRefSketchMode = true;
     }
+    
+    if (refName != "")
+      parameters.refSequences.push_back(refName);
     else
+      parseFileList(refList, parameters.refSequences);
+    
+    if (!parameters.writeRefSketchMode)
     {
-      validateInputFiles(parameters.querySequences, parameters.refSequences);
+      if (qryName != "")
+        parameters.querySequences.push_back(qryName);
+      else
+        parseFileList(qryList, parameters.querySequences);
     }
-    else
-      parseFileList(qryList, parameters.querySequences);
 
     assert(parameters.minFraction >= 0.0 && parameters.minFraction <= 1.0);
 
@@ -243,9 +249,6 @@ namespace skch
         parameters.minReadLength, parameters.referenceSize);
 
     printCmdOptions(parameters);
-
-    //Check if files are valid
-    validateInputFiles(parameters.querySequences, parameters.refSequences);
   }
 }
 

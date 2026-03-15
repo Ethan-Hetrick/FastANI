@@ -135,6 +135,9 @@ int core_genome_identity(int argc, char **argv)
 
   std::cerr << "INFO, skch::main, parallel_for execution finished" << std::endl;
 
+  if(parameters.writeRefSketchMode)
+    return 0;
+
   // Merge per-thread results (single-threaded, deterministic)
   std::vector<cgi::CGI_Results> finalResults;
 
