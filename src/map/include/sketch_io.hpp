@@ -3,6 +3,8 @@
 #include <fstream>
 #include <stdexcept>
 #include <string>
+#include <cstdint>
+
 #include "map/include/winSketch.hpp"
 #include "map/include/map_parameters.hpp"
 
@@ -17,14 +19,30 @@ namespace skch
       throw std::runtime_error("ERROR: cannot open sketch output file");
 
     uint32_t version = 1;
-    out.write((char*)&version, sizeof(version));
-    out.write((char*)&parameters.kmerSize, sizeof(parameters.kmerSize));
-    out.write((char*)&parameters.windowSize, sizeof(parameters.windowSize));
+    out.write(reinterpret_cast<const char*>(&version), sizeof(version));
+    out.write(reinterpret_cast<const char*>(&parameters.kmerSize), sizeof(parameters.kmerSize));
+    out.write(reinterpret_cast<const char*>(&parameters.windowSize), sizeof(parameters.windowSize));
 
-    size_t n = sketch.minimizerPosLookupIndex.size();
-    out.write((char*)&n, sizeof(n));
-    out.write((char*)sketch.minimizerPosLookupIndex.data(),
-              n * sizeof(sketch.minimizerPosLookupIndex[0]));
+    // number of minimizer keys in the lookup index
+    size_t nKeys = sketch.minimizerPosLookupIndex.size();
+    out.write(reinterpret_cast<const char*>(&nKeys), sizeof(nKeys));
+
+    for(const auto& kv : sketch.minimizerPosLookupIndex)
+    {
+      const MinimizerMapKeyType& key = kv.first;
+      const MinimizerMapValueType& vals = kv.second;
+
+      out.write(reinterpret_cast<const char*>(&key), sizeof(key));
+
+      size_t nVals = vals.size();
+      out.write(reinterpret_cast<const char*>(&nVals), sizeof(nVals));
+
+      if(nVals > 0)
+      {
+        out.write(reinterpret_cast<const char*>(vals.data()),
+                  nVals * sizeof(MinimizerMetaData));
+      }
+    }
 
     out.close();
   }
