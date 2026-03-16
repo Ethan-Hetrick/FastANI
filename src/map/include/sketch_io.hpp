@@ -141,6 +141,9 @@ namespace skch
     size_t nKeys = 0;
     in.read(reinterpret_cast<char*>(&nKeys), sizeof(nKeys));
 
+    sketch.minimizerPosLookupIndex.clear();
+    sketch.minimizerPosLookupIndex.reserve(nKeys);
+
     for(size_t i = 0; i < nKeys; i++)
     {
       MinimizerMapKeyType key;
@@ -149,7 +152,7 @@ namespace skch
       in.read(reinterpret_cast<char*>(&key), sizeof(key));
       in.read(reinterpret_cast<char*>(&nVals), sizeof(nVals));
 
-      auto& vals = sketch.minimizerPosLookupIndex[key];
+      MinimizerMapValueType vals;
       vals.resize(nVals);
 
       if(nVals > 0)
@@ -157,6 +160,8 @@ namespace skch
         in.read(reinterpret_cast<char*>(vals.data()),
                 nVals * sizeof(vals[0]));
       }
+
+      sketch.minimizerPosLookupIndex.emplace(key, std::move(vals));
     }
 
     if(!in)
