@@ -4,7 +4,7 @@
  * @author  Chirag Jain <cjain7@gatech.edu>
  */
 
-#ifndef PARSE_CMD_HPP 
+#ifndef PARSE_CMD_HPP
 #define PARSE_CMD_HPP
 
 #include <iostream>
@@ -25,31 +25,31 @@ namespace skch
 
   /**
    * @brief                   Parse the file which has list of reference or query files
-   * @param[in]   fileToRead  File containing list of ref/query files 
-   * @param[out]  fileList    List of files will be saved in this vector   
+   * @param[in]   fileToRead  File containing list of ref/query files
+   * @param[out]  fileList    List of files will be saved in this vector
    */
   template <typename VEC>
-    void parseFileList(std::string &fileToRead, VEC &fileList)
+  void parseFileList(std::string &fileToRead, VEC &fileList)
+  {
+    std::string line;
+
+    std::ifstream in(fileToRead);
+
+    if (in.fail())
     {
-      std::string line;
-
-      std::ifstream in(fileToRead);
-
-      if (in.fail())
-      {
-        std::cerr << "ERROR, skch::parseFileList, Could not open " << fileToRead << "\n";
-        exit(1);
-      }
-
-      while (std::getline(in, line))
-      {
-        //trim whitespaces
-        skch::CommonFunc::trim (line);
-
-        if (line.length() > 0)        //avoid empty strings
-          fileList.push_back(line);
-      }
+      std::cerr << "ERROR, skch::parseFileList, Could not open " << fileToRead << "\n";
+      exit(1);
     }
+
+    while (std::getline(in, line))
+    {
+      //trim whitespaces
+      skch::CommonFunc::trim(line);
+
+      if (line.length() > 0)        //avoid empty strings
+        fileList.push_back(line);
+    }
+  }
 
   /**
    * @brief                     validate the reference and query file(s)
@@ -57,37 +57,37 @@ namespace skch
    * @param[in] refSequences    vector containing reference file names
    */
   template <typename VEC>
-    void validateInputFiles(VEC &querySequences, VEC &refSequences)
+  void validateInputFiles(VEC &querySequences, VEC &refSequences)
+  {
+    if (refSequences.size() == 0)
     {
-      if (querySequences.size() == 0 || refSequences.size() == 0)
+      std::cerr << "ERROR, skch::validateInputFiles, Count of ref genomes should be non-zero" << std::endl;
+      exit(1);
+    }
+
+    //Open file one by one
+    for(auto &e : querySequences)
+    {
+      std::ifstream in(e);
+
+      if (in.fail())
       {
-        std::cerr << "ERROR, skch::validateInputFiles, Count of query and ref genomes should be non-zero" << std::endl;
+        std::cerr << "ERROR, skch::validateInputFiles, Could not open " << e << std::endl;
         exit(1);
       }
+    }
 
-      //Open file one by one
-      for(auto &e : querySequences)
+    for(auto &e : refSequences)
+    {
+      std::ifstream in(e);
+
+      if (in.fail())
       {
-        std::ifstream in(e);
-
-        if (in.fail())
-        {
-          std::cerr << "ERROR, skch::validateInputFiles, Could not open " << e << std::endl;
-          exit(1);
-        }
-      }
-
-      for(auto &e : refSequences)
-      {
-        std::ifstream in(e);
-
-        if (in.fail())
-        {
-          std::cerr << "ERROR, skch::validateInputFiles, Could not open " << e << std::endl;
-          exit(1);
-        }
+        std::cerr << "ERROR, skch::validateInputFiles, Could not open " << e << std::endl;
+        exit(1);
       }
     }
+  }
 
   /**
    * @brief                   Print the parsed cmd line options
@@ -111,7 +111,7 @@ namespace skch
    * @param[in]   cmd
    * @param[out]  parameters  sketch parameters are saved here
    */
-  void parseandSave(int argc, char** argv, 
+  void parseandSave(int argc, char** argv,
       skch::Parameters &parameters)
   {
     //defaults
@@ -128,7 +128,10 @@ namespace skch
     parameters.maxRatioDiff = 100.0;
     parameters.reportAll = true; //we need all mappings per fragment, not just best 1% as in mashmap
     parameters.sanityCheck = false;
-
+    parameters.writeRefSketchFile = "";
+    parameters.writeRefSketchMode = false;
+    parameters.sketchFile = "";
+    parameters.loadSketchMode = false;
 
     std::string refName, refList;
     std::string qryName, qryList;
@@ -150,12 +153,20 @@ namespace skch
     auto output_cmd = (clipp::option("-o", "--output") & clipp::value("value", parameters.outFileName)) % "output file name";
     auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
     auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
+    auto sketch_cmd =
+      (clipp::option("--sketch") & clipp::value("value", parameters.sketchFile))
+      % "load reference sketches from file prefix instead of rebuilding";
+    auto write_ref_sketch_cmd =
+      (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile))
+      % "write reference sketches to file and exit";
 
     auto cli =
       (
        help_cmd,
        ref_cmd,
        refList_cmd,
+       write_ref_sketch_cmd,
+       sketch_cmd,
        qry_cmd,
        qryList_cmd,
        kmer_cmd,
@@ -172,7 +183,7 @@ namespace skch
 
     //with formatting options
     auto fmt = clipp::doc_formatting{}
-    .first_column(0)
+      .first_column(0)
       .doc_column(5)
       .last_column(80);
 
@@ -197,27 +208,41 @@ namespace skch
       exit(0);
     }
 
-    if (refName == "" && refList == "")
+    if(!parameters.writeRefSketchFile.empty())
+    {
+      parameters.writeRefSketchMode = true;
+    }
+
+    if(!parameters.sketchFile.empty())
+      parameters.loadSketchMode = true;
+
+    if (!parameters.loadSketchMode && refName == "" && refList == "")
     {
       std::cerr << "Provide reference file (s)\n";
       exit(1);
     }
 
-    if (qryName == "" && qryList == "")
+    if (!parameters.writeRefSketchMode && qryName == "" && qryList == "")
     {
       std::cerr << "Provide query file (s)\n";
       exit(1);
     }
 
-    if (refName != "")
-      parameters.refSequences.push_back(refName);
-    else
-      parseFileList(refList, parameters.refSequences);
+    if (!parameters.loadSketchMode)
+    {
+      if (refName != "")
+        parameters.refSequences.push_back(refName);
+      else
+        parseFileList(refList, parameters.refSequences);
+    }
 
-    if (qryName != "")
-      parameters.querySequences.push_back(qryName);
-    else
-      parseFileList(qryList, parameters.querySequences);
+    if (!parameters.writeRefSketchMode)
+    {
+      if (qryName != "")
+        parameters.querySequences.push_back(qryName);
+      else
+        parseFileList(qryList, parameters.querySequences);
+    }
 
     assert(parameters.minFraction >= 0.0 && parameters.minFraction <= 1.0);
 
@@ -227,12 +252,30 @@ namespace skch
         parameters.percentageIdentity,
         parameters.minReadLength, parameters.referenceSize);
 
-    printCmdOptions(parameters);
+    if(parameters.writeRefSketchMode)
+    {
+      std::vector<std::string> emptyQueries;
+      validateInputFiles(emptyQueries, parameters.refSequences);
+    }
+    else if(parameters.loadSketchMode)
+    {
+      for(auto &e : parameters.querySequences)
+      {
+        std::ifstream in(e);
+        if(in.fail())
+        {
+          std::cerr << "ERROR, skch::validateInputFiles, Could not open " << e << std::endl;
+          exit(1);
+        }
+      }
+    }
+    else
+    {
+      validateInputFiles(parameters.querySequences, parameters.refSequences);
+    }
 
-    //Check if files are valid
-    validateInputFiles(parameters.querySequences, parameters.refSequences);
+    printCmdOptions(parameters);
   }
 }
-
 
 #endif
