@@ -41,6 +41,7 @@ namespace skch
     bool visualize;                                   //Visualize the conserved regions of two genomes
     bool matrixOutput;                                //report fastani results as lower triangular matrix
     bool extendedMetrics = false;                     //report extra fragment-level ANI metrics
+    bool header = false;                              //write a header row in tabular output
     float maxRatioDiff;                               //max Ratio for sanity check
     bool sanityCheck;                                 // Sanity check for extreme Cases
   };

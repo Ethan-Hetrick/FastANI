@@ -403,6 +403,26 @@ namespace cgi
 
     std::ofstream outstrm(fileName);
 
+    if(parameters.header)
+    {
+      outstrm << "Query"
+              << "\t" << "Reference"
+              << "\t" << "ANI"
+              << "\t" << "MatchedFragments"
+              << "\t" << "TotalQueryFragments";
+    
+      if(parameters.extendedMetrics)
+      {
+        outstrm << "\t" << "Frac99"
+                << "\t" << "SdANI"
+                << "\t" << "Q1"
+                << "\t" << "Median"
+                << "\t" << "Q3";
+      }
+    
+      outstrm << "\n";
+    }
+
     //Report results
     for(auto &e : CGI_ResultsVector)
     {

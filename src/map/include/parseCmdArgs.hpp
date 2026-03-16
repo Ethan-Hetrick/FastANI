@@ -162,6 +162,9 @@ namespace skch
     auto extended_metrics_cmd =
       clipp::option("--extended-metrics").set(parameters.extendedMetrics)
       .doc("report extended fragment-level ANI metrics");
+    auto header_cmd =
+      clipp::option("--header").set(parameters.header)
+      .doc("write a header row in tab-delimited output");
 
     auto cli =
       (
@@ -180,6 +183,7 @@ namespace skch
        visualize_cmd,
        matrix_cmd,
        extended_metrics_cmd,
+       header_cmd,
        output_cmd,
        sanitycheck_cmd,
        version_cmd
