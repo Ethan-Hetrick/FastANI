@@ -134,32 +134,35 @@ namespace skch
          * @brief               insert a minimizer from the reference sequence into the map
          * @param[in]   m       reference minimizer to insert
          */
-        inline void insert_ref(MIIter_t m)
-        {
-          hash_t hashVal = m->hash;
-          int status;
-
-          auto it = slidingWindowMinhashes.find(hashVal);
-
-          //if hash doesn't exist in the map, add to it
-          if(it == slidingWindowMinhashes.end())
-          {
-            it = slidingWindowMinhashes.emplace(hashVal, slidingMapContainerValueType{this->NAPos, m->wpos}).first;
-            status = IN::UNIQ;
-          }
-          else
-          {
-            status = (it->second.wposR == NAPos) ? IN::CPLD : IN::REV;
-
-            //if hash already exists in the map, just revise it
-            it->second.wposR = m->wpos;
-          }
-
-          updateCountersAfterInsert(status, m);
-
-          assert(this->sharedSketchElements >= 0);
-          assert(this->sharedSketchElements <= Q.sketchSize);
-        }
+         inline void insert_ref(MIIter_t m)
+         {
+           const hash_t hashVal = m->hash;
+           int status;
+         
+           auto it = slidingWindowMinhashes.lower_bound(hashVal);
+         
+           // if hash doesn't exist in the map, add it using the lower_bound hint
+           if(it == slidingWindowMinhashes.end() || it->first != hashVal)
+           {
+             it = slidingWindowMinhashes.emplace_hint(
+                 it,
+                 hashVal,
+                 slidingMapContainerValueType{this->NAPos, m->wpos});
+             status = IN::UNIQ;
+           }
+           else
+           {
+             status = (it->second.wposR == NAPos) ? IN::CPLD : IN::REV;
+         
+             // if hash already exists in the map, just revise it
+             it->second.wposR = m->wpos;
+           }
+         
+           updateCountersAfterInsert(status, m);
+         
+           assert(this->sharedSketchElements >= 0);
+           assert(this->sharedSketchElements <= Q.sketchSize);
+         }
 
         /**
          * @brief               delete a minimizer from the reference sequence from the map
