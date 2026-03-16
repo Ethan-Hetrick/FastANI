@@ -72,9 +72,15 @@ namespace cgi
     skch::seqno_t countSeq;
     skch::seqno_t totalQueryFragments;
     float identity;
-
+  
+    float frac99 = 0.0f;
+    float sdAni = 0.0f;
+    float q1Ani = 0.0f;
+    float medianAni = 0.0f;
+    float q3Ani = 0.0f;
+  
     bool operator <(const CGI_Results& x) const {
-      return std::tie(x.qryGenomeId, identity) 
+      return std::tie(x.qryGenomeId, identity)
         < std::tie(qryGenomeId, x.identity);
     }
   };

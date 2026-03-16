@@ -10,8 +10,9 @@
 #include <algorithm>
 #include <unordered_map>
 #include <fstream>
+#include <cmath>
 #include <omp.h>
-#include <zlib.h>  
+#include <zlib.h>
 
 //Own includes
 #include "map/include/base_types.hpp"
@@ -195,6 +196,40 @@ namespace cgi
    * @param[in]   fileName              file name where results will be reported
    * @param[out]  CGI_ResultsVector     FastANI results
    */
+
+  inline float percentileFromSorted(const std::vector<float> &vals, double p)
+  {
+    if(vals.empty())
+      return 0.0f;
+  
+    if(vals.size() == 1)
+      return vals[0];
+  
+    double idx = p * (vals.size() - 1);
+    size_t lo = static_cast<size_t>(std::floor(idx));
+    size_t hi = static_cast<size_t>(std::ceil(idx));
+  
+    if(lo == hi)
+      return vals[lo];
+  
+    double frac = idx - lo;
+    return static_cast<float>(vals[lo] + frac * (vals[hi] - vals[lo]));
+  }
+  
+  inline float computeStdDev(const std::vector<float> &vals, float mean)
+  {
+    if(vals.size() <= 1)
+      return 0.0f;
+  
+    double sumSq = 0.0;
+    for(float v : vals)
+    {
+      double d = v - mean;
+      sumSq += d * d;
+    }
+  
+    return static_cast<float>(std::sqrt(sumSq / vals.size()));
+  }
   void computeCGI(skch::Parameters &parameters,
       skch::MappingResultsVector_t &results,
       skch::Map &mapper,
@@ -295,32 +330,58 @@ namespace cgi
     for(auto it = mappings_2way.begin(); it != mappings_2way.end();)
     {
       skch::seqno_t currentGenomeId = it->genomeId;
-
-      //Bucket by genome id
-      auto rangeEndIter = std::find_if(it, mappings_2way.end(), [&](const MappingResult_CGI& e) 
-          { 
-            return e.genomeId != currentGenomeId; 
-          } );
-
-      float sumIdentity = 0.0;
-
-      for(auto it2 = it; it2 != rangeEndIter; it2++)
+    
+      // Bucket by genome id
+      auto rangeEndIter = std::find_if(
+          it,
+          mappings_2way.end(),
+          [&](const MappingResult_CGI& e)
+          {
+            return e.genomeId != currentGenomeId;
+          });
+    
+      float sumIdentity = 0.0f;
+      std::vector<float> fragmentAnis;
+      fragmentAnis.reserve(std::distance(it, rangeEndIter));
+    
+      skch::seqno_t countGe99 = 0;
+    
+      for(auto it2 = it; it2 != rangeEndIter; ++it2)
       {
         sumIdentity += it2->nucIdentity;
+        fragmentAnis.push_back(it2->nucIdentity);
+    
+        if(it2->nucIdentity >= 99.0f)
+          countGe99++;
       }
-
-      //Save the result 
+    
+      // Save the result
       CGI_Results currentResult;
-
+    
       currentResult.qryGenomeId = queryFileNo;
       currentResult.refGenomeId = currentGenomeId;
       currentResult.countSeq = std::distance(it, rangeEndIter);
       currentResult.totalQueryFragments = totalQueryFragments;
-      currentResult.identity = sumIdentity/currentResult.countSeq;
-
+      currentResult.identity = sumIdentity / currentResult.countSeq;
+    
+      if(parameters.extendedMetrics)
+      {
+        std::sort(fragmentAnis.begin(), fragmentAnis.end());
+    
+        currentResult.frac99 =
+          (currentResult.totalQueryFragments > 0)
+          ? static_cast<float>(countGe99) / static_cast<float>(currentResult.totalQueryFragments)
+          : 0.0f;
+    
+        currentResult.sdAni = computeStdDev(fragmentAnis, currentResult.identity);
+        currentResult.q1Ani = percentileFromSorted(fragmentAnis, 0.25);
+        currentResult.medianAni = percentileFromSorted(fragmentAnis, 0.50);
+        currentResult.q3Ani = percentileFromSorted(fragmentAnis, 0.75);
+      }
+    
       CGI_ResultsVector.push_back(currentResult);
-
-      //Advance the iterator it
+    
+      // Advance the iterator
       it = rangeEndIter;
     }
   }
@@ -342,6 +403,26 @@ namespace cgi
 
     std::ofstream outstrm(fileName);
 
+    if(parameters.header)
+    {
+      outstrm << "Query"
+              << "\t" << "Reference"
+              << "\t" << "ANI"
+              << "\t" << "MatchedFragments"
+              << "\t" << "TotalQueryFragments";
+    
+      if(parameters.extendedMetrics)
+      {
+        outstrm << "\t" << "Frac99"
+                << "\t" << "SdANI"
+                << "\t" << "Q1"
+                << "\t" << "Median"
+                << "\t" << "Q3";
+      }
+    
+      outstrm << "\n";
+    }
+
     //Report results
     for(auto &e : CGI_ResultsVector)
     {
@@ -361,10 +442,20 @@ namespace cgi
       {
         outstrm << qryGenome
           << "\t" << refGenome
-          << "\t" << e.identity 
+          << "\t" << e.identity
           << "\t" << e.countSeq
-          << "\t" << e.totalQueryFragments
-          << "\n";
+          << "\t" << e.totalQueryFragments;
+        
+        if(parameters.extendedMetrics)
+        {
+          outstrm << "\t" << e.frac99
+                  << "\t" << e.sdAni
+                  << "\t" << e.q1Ani
+                  << "\t" << e.medianAni
+                  << "\t" << e.q3Ani;
+        }
+        
+        outstrm << "\n";
       }
     }
 
