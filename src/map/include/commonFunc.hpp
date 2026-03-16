@@ -88,18 +88,29 @@ namespace skch
      * @param[in]   windowSize
      * @param[in]   seqCounter      current sequence number, used while saving the position of minimizer
      */
+    
 template <typename T, typename KSEQ>
-  inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize, 
+  inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize,
       int windowSize,
       int alphabetSize,
       seqno_t seqCounter)
 {
   /**
    * Double-ended queue (saves minimum at front end)
-   * Saves pair of the minimizer and the position of hashed kmer in the sequence
-   * Position of kmer is required to discard kmers that fall out of current window
+   * Stores only the information actually needed while the kmer lives in the
+   * current window:
+   *   - hash value
+   *   - kmer position in the sequence
+   *   - window position when this minimizer was last emitted (-1 until emitted)
    */
-  std::deque< std::pair<MinimizerInfo, offset_t> > Q;
+  struct WindowMinimizer
+  {
+    hash_t hash;
+    offset_t kmerPos;
+    offset_t emittedWpos;
+  };
+
+  std::deque<WindowMinimizer> Q;
 
   // PERF: avoid uppercasing if sequence already appears uppercase
   bool needsUpper = false;
@@ -112,8 +123,14 @@ template <typename T, typename KSEQ>
   if(needsUpper)
     makeUpperCase(kseq);
 
-  //length of the sequencd
+  //length of the sequence
   offset_t len = kseq->seq.l;
+
+  // Reserve an upper bound on emitted minimizers for this sequence to reduce
+  // vector growth during the hot loop.
+  const offset_t reserveCount = std::max<offset_t>(0, len - kmerSize - windowSize + 2);
+  if(reserveCount > 0)
+    minimizerIndex.reserve(minimizerIndex.size() + static_cast<size_t>(reserveCount));
 
   //Compute reverse complement of seq (reuse buffer to avoid per-call heap alloc)
   static thread_local std::vector<char> seqRevBuf;
@@ -135,7 +152,7 @@ template <typename T, typename KSEQ>
     offset_t currentWindowId = i - windowSize + 1;
 
     //Hash kmers
-    hash_t hashFwd = CommonFunc::getHash(kseq->seq.s + i, kmerSize); 
+    hash_t hashFwd = CommonFunc::getHash(kseq->seq.s + i, kmerSize);
     hash_t hashBwd;
 
     if(alphabetSize == 4)
@@ -150,30 +167,30 @@ template <typename T, typename KSEQ>
       hash_t currentKmer = std::min(hashFwd, hashBwd);
 
       //If front minimum is not in the current window, remove it
-      while(!Q.empty() && Q.front().second <=  i - windowSize)
+      while(!Q.empty() && Q.front().kmerPos <= i - windowSize)
         Q.pop_front();
 
       //Hashes less than equal to currentKmer are not required
       //Remove them from Q (back)
-      while(!Q.empty() && Q.back().first.hash >= currentKmer) 
+      while(!Q.empty() && Q.back().hash >= currentKmer)
         Q.pop_back();
 
       //Push currentKmer and position to back of the queue
       //-1 indicates the dummy window # (will be updated later)
-      Q.push_back( std::make_pair(
-            MinimizerInfo{currentKmer, seqCounter, -1},
-            i)); 
+      Q.push_back(WindowMinimizer{currentKmer, i, -1});
 
       //Select the minimizer from Q and put into index
       if(currentWindowId >= 0)
       {
+        const MinimizerInfo frontInfo{Q.front().hash, seqCounter, Q.front().emittedWpos};
+
         //We save the minimizer if we are seeing it for first time
-        if(minimizerIndex.empty() || minimizerIndex.back() != Q.front().first)
+        if(minimizerIndex.empty() || minimizerIndex.back() != frontInfo)
         {
           //Update the window position in this minimizer
           //This step also ensures we don't re-insert the same minimizer again
-          Q.front().first.wpos = currentWindowId;     
-          minimizerIndex.push_back(Q.front().first);
+          Q.front().emittedWpos = currentWindowId;
+          minimizerIndex.push_back(MinimizerInfo{Q.front().hash, seqCounter, currentWindowId});
         }
       }
     }
