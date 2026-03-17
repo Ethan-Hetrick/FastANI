@@ -222,7 +222,7 @@ namespace skch
       .doc_column(5)
       .last_column(80);
 
-    std::string description = "fastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n-----------------\nExample usage:\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\nBasic all vs all comparison with query list, reference list, and matrix output:\n$ fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt";
+    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\nBasic all vs all comparison with query list, reference list, and matrix output:\n$ fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt";
 
     auto printHelp = [&]() {
       auto man = clipp::man_page{}
@@ -231,7 +231,7 @@ namespace skch
         .append_section("OUTPUT OPTIONS\n--------------", clipp::documentation(output_cli, fmt).str())
         .append_section("MAPPING PARAMETERS\n------------------", clipp::documentation(mapping_cli, fmt).str())
         .append_section("EXECUTION OPTIONS\n-----------------", clipp::documentation(execution_cli, fmt).str())
-        .prepend_section("-----------------", description);
+        .prepend_section("", description);
 
       clipp::operator<<(std::cout, man) << std::endl;
     };
