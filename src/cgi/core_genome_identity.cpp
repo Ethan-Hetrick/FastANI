@@ -50,8 +50,7 @@ int core_genome_identity(int argc, char **argv)
   std::vector<bool> sanityCheck(parameters.threads, true);
   std::vector<float> ratioDiffs(parameters.threads, true);
 
-#pragma omp parallel for schedule(static,1)
-  for (uint64_t i = 0; i < parameters.threads; i++)
+  auto runReferenceSplit = [&](uint64_t i)
   {
     if (omp_get_thread_num() == 0)
       std::cerr << "INFO [thread 0], skch::main, Count of threads executing parallel_for : "
@@ -113,7 +112,7 @@ int core_genome_identity(int argc, char **argv)
                 << "], skch::main, wrote sketch to "
                 << outSketchFile << std::endl;
 
-      continue;
+      return;
     }
 
     std::chrono::duration<double> timeRefSketch = skch::Time::now() - t0;
@@ -163,13 +162,27 @@ int core_genome_identity(int argc, char **argv)
       }
     }
 
-    cgi::correctRefGenomeIds(finalResults_local);
+    cgi::correctRefGenomeIds(finalResults_local,
+                             static_cast<int>(i),
+                             parameters.threads);
 
     // Store this thread's results without locking; merge after parallel region
     finalResults_by_thread[i] = std::move(finalResults_local);
 
     std::cerr << "INFO [thread " << omp_get_thread_num()
               << "], skch::main, ready to exit the loop" << std::endl;
+  };
+
+  if(parameters.lowMemory)
+  {
+    for (uint64_t i = 0; i < parameters.threads; i++)
+      runReferenceSplit(i);
+  }
+  else
+  {
+#pragma omp parallel for schedule(static,1)
+    for (uint64_t i = 0; i < parameters.threads; i++)
+      runReferenceSplit(i);
   }
 
   std::cerr << "INFO, skch::main, parallel_for execution finished" << std::endl;
@@ -220,7 +233,7 @@ int core_genome_identity(int argc, char **argv)
   if(parameters.matrixOutput)
     cgi::outputPhylip(parameters, genomeLengths, finalResults, fileName);
 
-  if(parameters.visualize && parameters.threads > 1)
+  if(parameters.visualize && parameters.threads > 1 && !parameters.lowMemory)
   {
     std::string outVisFile = fileName + ".visual";
     std::ofstream ofile(outVisFile);

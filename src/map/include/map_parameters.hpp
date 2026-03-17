@@ -42,6 +42,7 @@ namespace skch
     bool matrixOutput;                                //report fastani results as lower triangular matrix
     bool extendedMetrics = false;                     //report extra fragment-level ANI metrics
     bool header = false;                              //write a header row in tabular output
+    bool lowMemory = false;                           //load sketch bins one at a time during sketch-backed querying
     float maxRatioDiff;                               //max Ratio for sanity check
     bool sanityCheck;                                 // Sanity check for extreme Cases
   };
