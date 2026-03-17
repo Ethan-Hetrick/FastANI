@@ -264,13 +264,13 @@ namespace skch
       template <typename Q_Info, typename Vec>
         void doL1Mapping(Q_Info &Q, Vec &l1Mappings)
         {
-          //Vector of positions of all the hits 
+          //Vector of positions of all the hits
           std::vector<MinimizerMetaData> seedHitsL1;
-          seedHitsL1.reserve(20000);
 
-          // PERF: reuse query minimizer buffer across fragments (capacity retained)
+          // Reuse query minimizer buffer across fragments (capacity retained)
           Q.minimizerTableQuery.clear();
-          Q.minimizerTableQuery.reserve(4096);
+          if(Q.minimizerTableQuery.capacity() < 4096)
+            Q.minimizerTableQuery.reserve(4096);
 
           ///1. Compute the minimizers
           CommonFunc::addMinimizers(Q.minimizerTableQuery, Q.kseq, param.kmerSize, param.windowSize, param.alphabetSize);
@@ -288,27 +288,31 @@ namespace skch
 
           //This is the sketch size for estimating jaccard
           Q.sketchSize = std::distance(Q.minimizerTableQuery.begin(), uniqEndIter);
-
+          
           //For invalid query (example : just NNNs), we may be left with 0 sketch size
           //Ignore the query in this case
           if(Q.sketchSize == 0)
             return;
+          
+          // Reserve seed-hit storage based on the actual number of unique minimizers
+          const size_t uniqCount = static_cast<size_t>(Q.sketchSize);
+          if(seedHitsL1.capacity() < uniqCount * 8)
+            seedHitsL1.reserve(uniqCount * 8);
 
-          for(auto it = Q.minimizerTableQuery.begin(); it != uniqEndIter; it++)
+          for(auto it = Q.minimizerTableQuery.begin(); it != uniqEndIter; ++it)
           {
             //Check if hash value exists in the reference lookup index
             auto seedFind = refSketch.minimizerPosLookupIndex.find(it->hash);
-
+          
             if(seedFind != refSketch.minimizerPosLookupIndex.end())
             {
               const auto& hitPositionList = seedFind->second;
-
+          
               //Save the positions (Ignore high frequency hits)
               if(hitPositionList.size() < refSketch.getFreqThreshold())
               {
                 seedHitsL1.insert(seedHitsL1.end(), hitPositionList.begin(), hitPositionList.end());
               }
-
             }
           }
 

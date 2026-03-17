@@ -138,27 +138,22 @@ namespace skch
     bool versioncheck = false;
     bool help = false;
 
-    auto help_cmd = clipp::option("-h", "--help").set(help).doc("print this help page");
+    // INPUT OPTIONS
     auto ref_cmd = (clipp::option("-r", "--ref") & clipp::value("value", refName)) % "reference genome (fasta/fastq)[.gz]";
     auto refList_cmd = (clipp::option("--rl", "--refList") & clipp::value("value", refList)) % "a file containing list of reference genome files, one genome per line";
     auto qry_cmd = (clipp::option("-q", "--query") & clipp::value("value", qryName)) % "query genome (fasta/fastq)[.gz]";
     auto qryList_cmd = (clipp::option("--ql", "--queryList") & clipp::value("value", qryList)) % "a file containing list of query genome files, one genome per line";
-    auto kmer_cmd = (clipp::option("-k", "--kmer") & clipp::value("value", parameters.kmerSize)) % "kmer size <= 16 [default : 16]";
-    auto thread_cmd = (clipp::option("-t", "--threads") & clipp::value("value", parameters.threads)) % "thread count for parallel execution [default : 1]";
-    auto fraglen_cmd = (clipp::option("--fragLen") & clipp::value("value", parameters.minReadLength)) % "fragment length [default : 3,000]";
-    auto minfraction_cmd = (clipp::option("--minFraction") & clipp::value("value", parameters.minFraction)) % "minimum fraction of genome that must be shared for trusting ANI. If reference and query genome size differ, smaller one among the two is considered. [default : 0.2]";
-    auto maxratio_cmd = (clipp::option("--maxRatioDiff") & clipp::value("value", parameters.maxRatioDiff)) % "maximum difference between (Total Ref. Length/Total Occ. Hashes) and (Total Ref. Length/Total No. Hashes). [default : 10.0]";
-    auto visualize_cmd = clipp::option("--visualize").set(parameters.visualize).doc("output mappings for visualization, can be enabled for single genome to single genome comparison only [disabled by default]");
-    auto matrix_cmd = clipp::option("--matrix").set(parameters.matrixOutput).doc("also output ANI values as lower triangular matrix (format inspired from phylip). If enabled, you should expect an output file with .matrix extension [disabled by default]");
-    auto output_cmd = (clipp::option("-o", "--output") & clipp::value("value", parameters.outFileName)) % "output file name";
-    auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
-    auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
     auto sketch_cmd =
       (clipp::option("--sketch") & clipp::value("value", parameters.sketchFile))
       % "load reference sketches from file prefix instead of rebuilding";
+
+    // OUTPUT OPTIONS
+    auto output_cmd = (clipp::option("-o", "--output") & clipp::value("value", parameters.outFileName)) % "output file name";
     auto write_ref_sketch_cmd =
       (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile))
       % "write reference sketches to file and exit";
+    auto matrix_cmd = clipp::option("--matrix").set(parameters.matrixOutput).doc("also output ANI values as lower triangular matrix (format inspired from phylip). If enabled, you should expect an output file with .matrix extension [disabled by default]");
+    auto visualize_cmd = clipp::option("--visualize").set(parameters.visualize).doc("output mappings for visualization, can be enabled for single genome to single genome comparison only [disabled by default]");
     auto extended_metrics_cmd =
       clipp::option("--extended-metrics").set(parameters.extendedMetrics)
       .doc("report extended fragment-level ANI metrics");
@@ -166,27 +161,59 @@ namespace skch
       clipp::option("--header").set(parameters.header)
       .doc("write a header row in tab-delimited output");
 
-    auto cli =
+    // MAPPING PARAMETERS
+    auto kmer_cmd = (clipp::option("-k", "--kmer") & clipp::value("value", parameters.kmerSize)) % "kmer size <= 16 [default : 16]";
+    auto fraglen_cmd = (clipp::option("--fragLen") & clipp::value("value", parameters.minReadLength)) % "fragment length [default : 3,000]";
+    auto minfraction_cmd = (clipp::option("--minFraction") & clipp::value("value", parameters.minFraction)) % "minimum fraction of genome that must be shared for trusting ANI. If reference and query genome size differ, smaller one among the two is considered. [default : 0.2]";
+    auto maxratio_cmd = (clipp::option("--maxRatioDiff") & clipp::value("value", parameters.maxRatioDiff)) % "maximum difference between (Total Ref. Length/Total Occ. Hashes) and (Total Ref. Length/Total No. Hashes). [default : 10.0]";
+
+    // EXECUTION OPTIONS
+    auto thread_cmd = (clipp::option("-t", "--threads") & clipp::value("value", parameters.threads)) % "thread count for parallel execution [default : 1]";
+    auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
+    auto help_cmd = clipp::option("-h", "--help").set(help).doc("print this help page");
+    auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
+
+    auto input_cli =
       (
-       help_cmd,
        ref_cmd,
        refList_cmd,
-       write_ref_sketch_cmd,
-       sketch_cmd,
        qry_cmd,
        qryList_cmd,
+       sketch_cmd
+      );
+
+    auto output_cli =
+      (
+       output_cmd,
+       write_ref_sketch_cmd,
+       matrix_cmd,
+       visualize_cmd,
+       extended_metrics_cmd,
+       header_cmd
+      );
+
+    auto mapping_cli =
+      (
        kmer_cmd,
-       thread_cmd,
        fraglen_cmd,
        minfraction_cmd,
-       maxratio_cmd,
-       visualize_cmd,
-       matrix_cmd,
-       extended_metrics_cmd,
-       header_cmd,
-       output_cmd,
+       maxratio_cmd
+      );
+
+    auto execution_cli =
+      (
+       thread_cmd,
        sanitycheck_cmd,
+       help_cmd,
        version_cmd
+      );
+
+    auto cli =
+      (
+       input_cli,
+       output_cli,
+       mapping_cli,
+       execution_cli
       );
 
     //with formatting options
@@ -195,18 +222,30 @@ namespace skch
       .doc_column(5)
       .last_column(80);
 
-    std::string description = "fastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n-----------------\nExample usage:\n$ fastANI -q genome1.fa -r genome2.fa -o output.txt\n$ fastANI -q genome1.fa --rl genome_list.txt -o output.txt";
+    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\nBasic all vs all comparison with query list, reference list, and matrix output:\n$ fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt";
+
+    auto printHelp = [&]() {
+      auto man = clipp::man_page{}
+        .append_section("SYNOPSIS\n--------", clipp::usage_lines(cli, argv[0], fmt).str())
+        .append_section("INPUT OPTIONS\n-------------", clipp::documentation(input_cli, fmt).str())
+        .append_section("OUTPUT OPTIONS\n--------------", clipp::documentation(output_cli, fmt).str())
+        .append_section("MAPPING PARAMETERS\n------------------", clipp::documentation(mapping_cli, fmt).str())
+        .append_section("EXECUTION OPTIONS\n-----------------", clipp::documentation(execution_cli, fmt).str())
+        .prepend_section("", description);
+
+      clipp::operator<<(std::cout, man) << std::endl;
+    };
 
     if(!clipp::parse(argc, argv, cli))
     {
       //print help page
-      clipp::operator<<(std::cout, clipp::make_man_page(cli, argv[0], fmt).prepend_section("-----------------", description)) << std::endl;
+      printHelp();
       exit(1);
     }
 
     if (help)
     {
-      clipp::operator<<(std::cout, clipp::make_man_page(cli, argv[0], fmt).prepend_section("-----------------", description)) << std::endl;
+      printHelp();
       exit(0);
     }
 
