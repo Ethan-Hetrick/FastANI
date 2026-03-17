@@ -172,7 +172,7 @@ namespace skch
     auto thread_cmd = (clipp::option("-t", "--threads") & clipp::value("value", parameters.threads)) % "thread count for parallel execution [default : 1]";
     auto low_memory_cmd =
       clipp::option("--low-memory").set(parameters.lowMemory)
-      .doc("load one sketch bin at a time during sketch-backed querying [disabled by default]");
+      .doc("load one sketch bin at a time during sketch-backed querying; requires --sketch and is incompatible with --matrix and --write-ref-sketch [disabled by default]");
     auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
     auto help_cmd = clipp::option("-h", "--help").set(help).doc("print this help page");
     auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
@@ -227,7 +227,7 @@ namespace skch
       .doc_column(5)
       .last_column(80);
 
-    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\nBasic all vs all comparison with query list, reference list, and matrix output:\n$ fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt";
+    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\n1 vs all comparison using a sketch in low-memory mode:\n$ fastANI -q query.fa --sketch reference_sketch --low-memory -o output.txt\n\nBasic all vs all comparison with query list, reference list, and matrix output:\n$ fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt";
 
     auto printHelp = [&]() {
       auto man = clipp::man_page{}
