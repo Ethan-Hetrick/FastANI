@@ -72,6 +72,8 @@ fastANI --version
 - `--sketch` expects the prefix of a previously written reference sketch database and is used instead of `--ref` or `--refList`.
 - `--write-ref-sketch` writes a reference sketch database and exits; it requires `--ref` or `--refList` and does not use query input.
 
+Gzip-compressed FASTA/FASTQ input is supported throughout the normal query and reference workflows. For heavy benchmarking or repeated runs, uncompressed inputs may be faster because they avoid repeated gzip decompression.
+
 ## Parameter reference
 
 ### Input options

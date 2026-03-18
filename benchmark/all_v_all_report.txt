@@ -1,5 +1,5 @@
 FastANI all-v-all benchmark report
-Date: 2026-03-18T16:53:18-04:00
+Date: 2026-03-18T17:16:02-04:00
 
 Scope
 - Query list: genome-list.txt
@@ -53,13 +53,13 @@ Tasks:   4 total,   1 running,   3 sleeping,   0 stopped,   0 zombie
 Summary
 - Old tool full run wall time: 1076.02s
 - New tool sketch build wall time: 22.52s
-- New tool sketch query wall time: 483.48s
-- New workflow total wall time: 506.00s
+- New tool sketch query wall time: 483.99s
+- New workflow total wall time: 506.51s
 - Old tool peak RSS: 10.91 GiB
 - New sketch build peak RSS: 10.21 GiB
-- New sketch query peak RSS: 10.67 GiB
+- New sketch query peak RSS: 10.68 GiB
 - Old tool CPU time (user+sys): 11321.41s
-- New workflow CPU time (user+sys): 8105.74s
+- New workflow CPU time (user+sys): 8148.50s
 
 Phase timing notes
 - Old tool DB phase is the in-run reference build.
