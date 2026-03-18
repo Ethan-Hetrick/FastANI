@@ -99,6 +99,7 @@ namespace skch
     std::cerr << "Reference = " << parameters.refSequences << std::endl;
     std::cerr << "Query = " << parameters.querySequences << std::endl;
     std::cerr << "Kmer size = " << parameters.kmerSize << std::endl;
+    std::cerr << "Window size = " << parameters.windowSize << std::endl;
     std::cerr << "Fragment length = " << parameters.minReadLength << std::endl;
     std::cerr << "Threads = " << parameters.threads << std::endl;
     std::cerr << "ANI output file = " << parameters.outFileName << std::endl;
@@ -116,6 +117,7 @@ namespace skch
   {
     //defaults
     parameters.kmerSize = 16;
+    parameters.windowSizeManual = 0;
     parameters.minReadLength = 3000;
     parameters.alphabetSize = 4;
     parameters.minFraction = 0.2;
@@ -164,6 +166,9 @@ namespace skch
 
     // MAPPING PARAMETERS
     auto kmer_cmd = (clipp::option("-k", "--kmer") & clipp::value("value", parameters.kmerSize)) % "kmer size <= 16 [default : 16]";
+    auto window_size_cmd =
+      (clipp::option("--window-size") & clipp::value("value", parameters.windowSizeManual))
+      % "set minimizer window size manually instead of using the internally recommended value";
     auto fraglen_cmd = (clipp::option("--fragLen") & clipp::value("value", parameters.minReadLength)) % "fragment length [default : 3,000]";
     auto minfraction_cmd = (clipp::option("--minFraction") & clipp::value("value", parameters.minFraction)) % "minimum fraction of genome that must be shared for trusting ANI. If reference and query genome size differ, smaller one among the two is considered. [default : 0.2]";
     auto maxratio_cmd = (clipp::option("--maxRatioDiff") & clipp::value("value", parameters.maxRatioDiff)) % "maximum difference between (Total Ref. Length/Total Occ. Hashes) and (Total Ref. Length/Total No. Hashes). [default : 10.0]";
@@ -199,6 +204,7 @@ namespace skch
     auto mapping_cli =
       (
        kmer_cmd,
+       window_size_cmd,
        fraglen_cmd,
        minfraction_cmd,
        maxratio_cmd
@@ -319,11 +325,20 @@ namespace skch
 
     assert(parameters.minFraction >= 0.0 && parameters.minFraction <= 1.0);
 
+    if(parameters.windowSizeManual < 0)
+    {
+      std::cerr << "ERROR, --window-size must be greater than 0 when provided\n";
+      exit(1);
+    }
+
     //Compute optimal window size
     parameters.windowSize = skch::Stat::recommendedWindowSize(parameters.p_value,
         parameters.kmerSize, parameters.alphabetSize,
         parameters.percentageIdentity,
         parameters.minReadLength, parameters.referenceSize);
+
+    if(parameters.windowSizeManual > 0)
+      parameters.windowSize = parameters.windowSizeManual;
 
     if(parameters.writeRefSketchMode)
     {
