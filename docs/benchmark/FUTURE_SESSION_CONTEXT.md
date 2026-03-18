@@ -126,6 +126,9 @@ These commits are useful anchors when reloading context:
 - `3cad783` `docs: summarize fork change history`
 - `17e557c` `docs: expand JOSS publication draft`
 - `299c6bd` `docs: add draft author metadata`
+- `f613abd` `fix: restore sketch output parity`
+- `c85d035` `docs: refresh all-v-all benchmark reporting`
+- `6c4cb6a` `docs: refresh publication benchmark dashboard`
 
 Also see:
 
@@ -198,20 +201,31 @@ Comparable modes must be checked with exact output comparison:
 - publication validation currently stored in:
   - `docs/pub/data/publication_validation.txt`
 
+Also maintain full-scale sketch honesty checks:
+
+- sketch-backed all-v-all output must preserve original-style reference identity and filtering behavior
+- release-mode all-v-all row counts should match the original baseline exactly after the sketch metadata fix
+
 ## Known Performance Results
 
 These are the current publication-facing headline results relative to the original tool on the maintained benchmark:
 
 - current no-sketch path:
-  - about `9.9%` faster overall
+  - about `15.3%` faster overall
 - sketch query, all shards:
-  - about `12.6x` faster end-to-end
+  - about `15.3x` faster end-to-end
+  - about `24.1x` faster sketch setup/load than rebuilding references in-run
 - sketch query, `--batch-size 5`:
   - about `88.6%` faster
   - about `26.2%` lower RSS
 - sketch query, `--batch-size 1`:
-  - about `64.6%` faster
+  - about `64.8%` faster
   - about `82.9%` lower RSS
+
+Additional full-scale result:
+
+- full all-v-all (`genome-list.txt` vs `genome-list.txt`) is about `2.13x` faster with the new sketch workflow (`506.51s` total vs `1076.02s` for the original tool)
+- corrected sketch-backed all-v-all row counts now match exactly: `1,310,658` old vs `1,310,658` new
 
 If future code changes materially alter these numbers, regenerate the publication benchmark set and dashboard.
 
@@ -258,6 +272,11 @@ Important files:
 - `docs/benchmark/FUTURE_SESSION_CONTEXT.md`
 - `docs/benchmark/BENCHMARK_COMMANDS.md`
 - `docs/references/paper.html`
+
+AI usage note preserved for manuscript work:
+
+- GPT-5.4 code agent was used for the bulk of the initial coding and documentation work
+- ChatGPT assistance used during this effort was run with the `high` reasoning setting
 - `docs/references/example_paper.html`
 - `docs/references/editing.html`
 - `docs/references/review_checklist.html`

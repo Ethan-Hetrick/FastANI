@@ -3,6 +3,7 @@ args <- commandArgs(trailingOnly = TRUE)
 csv_path <- if (length(args) >= 1) args[[1]] else "benchmark/publication_runs.csv"
 out_dir <- if (length(args) >= 2) args[[2]] else "benchmark/plots"
 validation_path <- if (length(args) >= 3) args[[3]] else "benchmark/publication_validation.txt"
+all_v_all_path <- if (length(args) >= 4) args[[4]] else "benchmark/all_v_all_summary.csv"
 
 dir.create(out_dir, recursive = TRUE, showWarnings = FALSE)
 
@@ -22,6 +23,17 @@ for (col in numeric_cols) {
 
 df$max_rss_gb <- df$max_rss_kb / (1024 * 1024)
 df$total_cpu_sec <- df$user_cpu_sec + df$system_cpu_sec
+
+all_v_all_df <- NULL
+if (file.exists(all_v_all_path)) {
+  all_v_all_df <- read.csv(all_v_all_path, stringsAsFactors = FALSE, na.strings = c("NA", ""))
+  all_v_all_num_cols <- c("output_rows", "db_sec", "query_sec", "post_sec", "wall_sec", "user_cpu_sec", "system_cpu_sec", "cpu_percent", "max_rss_kb", "fs_in", "fs_out")
+  for (col in all_v_all_num_cols) {
+    all_v_all_df[[col]] <- suppressWarnings(as.numeric(all_v_all_df[[col]]))
+  }
+  all_v_all_df$other_sec <- pmax(0, all_v_all_df$wall_sec - all_v_all_df$db_sec - all_v_all_df$query_sec - all_v_all_df$post_sec)
+  all_v_all_df$max_rss_gb <- all_v_all_df$max_rss_kb / (1024 * 1024)
+}
 
 variant_levels <- c("old_release", "new_release", "standard", "batch_5", "batch_1")
 variant_plot_labels <- c(
@@ -190,6 +202,8 @@ draw_stacked_runtime <- function(variants, title, subtitle) {
   text(mids, totals, labels = fmt_num(totals, 2), pos = 3, cex = 0.92, col = text_primary)
   legend("topright", legend = rownames(runtime_mat), fill = phase_colors, bty = "n", cex = 0.84)
   mtext(subtitle, side = 3, line = 0.4, cex = 0.88, col = text_muted)
+  mtext(sprintf("Workload: 1 query, 5,032 references, %d reported comparisons", std_s$output_rows),
+        side = 1, line = 4.4, cex = 0.80, col = text_muted)
 }
 
 draw_metric_bars <- function(variants, values, title, ylab, subtitle, point_col_fun) {
@@ -277,11 +291,11 @@ draw_memory_panel <- function() {
 
 draw_relative_change_panel <- function() {
   labels <- c(
-    "No-sketch total runtime",
-    "No-sketch query mapping",
+    "No-sketch runtime",
+    "No-sketch query",
     "No-sketch DB build",
-    "All-shards sketch DB/load",
-    "All-shards sketch runtime",
+    "All-shards DB/load",
+    "All-shards runtime",
     "Batch=5 runtime",
     "Batch=5 RSS",
     "Batch=1 runtime",
@@ -341,9 +355,61 @@ draw_relative_change_panel <- function() {
   mtext("Reference line at 1.0; values left of the line are reductions", side = 3, line = 0.4, cex = 0.84, col = text_muted)
 }
 
+draw_all_v_all_panel <- function() {
+  if (is.null(all_v_all_df) || nrow(all_v_all_df) == 0) {
+    panel_box()
+    text(0.05, 0.90, "Full All-v-all Runtime", adj = c(0, 1), cex = 1.02, font = 2, col = text_primary)
+    text(0.05, 0.52, "No all-v-all summary file found.", adj = c(0, 0.5), cex = 0.92, col = text_muted)
+    return()
+  }
+
+  labels <- c(
+    "Old full run",
+    "New sketch\nbuild",
+    "New sketch\nquery"
+  )
+  runtime_mat <- rbind(
+    all_v_all_df$db_sec / 60,
+    all_v_all_df$query_sec / 60,
+    all_v_all_df$post_sec / 60,
+    all_v_all_df$other_sec / 60
+  )
+  rownames(runtime_mat) <- c("DB/load", "Query map", "Post map", "Other overhead")
+  colnames(runtime_mat) <- labels
+  totals <- colSums(runtime_mat)
+  ymax <- max(totals) * 1.25
+
+  par(mar = c(7, 5.5, 4, 1.5) + 0.1)
+  mids <- barplot(
+    runtime_mat,
+    beside = FALSE,
+    col = phase_colors,
+    border = NA,
+    ylim = c(0, ymax),
+    ylab = "Minutes",
+    main = "Full All-v-all Runtime",
+    las = 1,
+    cex.names = 0.88
+  )
+  abline(h = pretty(c(0, ymax)), col = grid_col, lwd = 1)
+  mids <- barplot(
+    runtime_mat,
+    beside = FALSE,
+    col = phase_colors,
+    border = "#5E6B78",
+    add = TRUE,
+    axes = FALSE,
+    axisnames = FALSE
+  )
+  text(mids, totals, labels = sprintf("%.1f", totals), pos = 3, cex = 0.82, col = text_primary)
+  mtext(sprintf("Warm-cache all-v-all"), side = 3, line = 0.4, cex = 0.80, col = text_muted)
+  mtext(sprintf("Workload: 10,065 queries, 10,065 references, %.2fM reported comparisons", all_v_all_df$output_rows[3] / 1e6),
+        side = 1, line = 5.1, cex = 0.78, col = text_muted)
+}
+
 draw_notes_panel <- function() {
   panel_box()
-  text(0.05, 0.93, "Legends and Validation", adj = c(0, 1), cex = 1.06, font = 2, col = text_primary)
+  text(0.05, 0.93, "Legends and Validation", adj = c(0, 1), cex = 1.08, font = 2, col = text_primary)
 
   short_variant_labels <- c(
     old_release = "Old no-sketch",
@@ -353,39 +419,41 @@ draw_notes_panel <- function() {
     batch_1 = "Batch=1"
   )
 
-  text(0.07, 0.82, "Variant colors", adj = c(0, 0.5), cex = 0.92, font = 2, col = text_primary)
-  variant_y <- c(0.75, 0.67, 0.59, 0.51, 0.43)
+  text(0.07, 0.84, "Variant colors", adj = c(0, 0.5), cex = 0.94, font = 2, col = text_primary)
+  variant_y <- c(0.77, 0.70, 0.63, 0.56, 0.49)
   variant_keys <- c("old_release", "new_release", "standard", "batch_5", "batch_1")
   for (i in seq_along(variant_keys)) {
     rect(0.07, variant_y[i] - 0.022, 0.125, variant_y[i] + 0.022, col = variant_colors[[variant_keys[i]]], border = "#41505C")
-    text(0.15, variant_y[i], short_variant_labels[[variant_keys[i]]], adj = c(0, 0.5), cex = 0.85, col = text_primary)
+    text(0.15, variant_y[i], short_variant_labels[[variant_keys[i]]], adj = c(0, 0.5), cex = 0.84, col = text_primary)
   }
 
-  text(0.58, 0.82, "Phase colors", adj = c(0, 0.5), cex = 0.92, font = 2, col = text_primary)
-  phase_y <- c(0.75, 0.67, 0.59, 0.51)
+  text(0.58, 0.84, "Phase colors", adj = c(0, 0.5), cex = 0.94, font = 2, col = text_primary)
+  phase_y <- c(0.77, 0.70, 0.63, 0.56)
   phase_keys <- c("db", "query", "post", "other")
   phase_labels <- c("DB/load", "Query", "Post", "Other")
   for (i in seq_along(phase_keys)) {
     rect(0.58, phase_y[i] - 0.022, 0.635, phase_y[i] + 0.022, col = phase_colors[[phase_keys[i]]], border = "#41505C")
-    text(0.66, phase_y[i], phase_labels[i], adj = c(0, 0.5), cex = 0.85, col = text_primary)
+    text(0.66, phase_y[i], phase_labels[i], adj = c(0, 0.5), cex = 0.84, col = text_primary)
   }
 
-  segments(0.07, 0.34, 0.93, 0.34, col = panel_border, lwd = 1)
+  segments(0.07, 0.42, 0.93, 0.42, col = panel_border, lwd = 1)
 
   lines_to_show <- c(
     sprintf("15 runs total: 5 variants x %d replicates", unique(summary_df$n)[1]),
-    "Workload: 1 query vs 5,032 references",
-    "Release builds; sketch test uses 8 shards"
+    "Release builds; sketch benchmark uses 8 shards",
+    "Repeated runs were stable within each execution mode",
+    "1-v-many outputs matched exactly across old/new no-sketch and all sketch batch modes",
+    "Full all-v-all old vs new row counts matched after the sketch metadata fix"
   )
 
   for (i in seq_along(lines_to_show)) {
-    text(0.07, 0.28 - (i - 1) * 0.08, paste0("\u2022 ", lines_to_show[i]),
-         adj = c(0, 0.5), cex = 0.88, col = text_primary)
+    text(0.08, 0.38 - (i - 1) * 0.064, paste0("\u2022 ", lines_to_show[i]),
+         adj = c(0, 0.5), cex = 0.80, col = text_primary)
   }
 
   status_col <- if (validation_all_match) "#2C8E5A" else "#C84C4C"
-  status_label <- if (validation_all_match) "All recorded validation checks matched" else "One or more validation checks failed"
-  text(0.07, 0.05, status_label, adj = c(0, 0.5), cex = 0.92, font = 2, col = status_col)
+  status_label <- if (validation_all_match) "Validation summary: all recorded checks passed" else "Validation summary: check failures present"
+  text(0.08, 0.06, status_label, adj = c(0, 0.5), cex = 0.85, font = 2, col = status_col)
 }
 
 write_summary_tables <- function() {
@@ -433,16 +501,16 @@ write_summary_tables <- function() {
 }
 
 render_dashboard <- function(file_name) {
-  png(file.path(out_dir, file_name), width = 2400, height = 1800, res = 170, bg = bg)
+  png(file.path(out_dir, file_name), width = 2800, height = 1800, res = 170, bg = bg)
   layout(
     matrix(
-      c(1, 2, 3, 4, 5, 6,
-        7, 7, 7, 7, 7, 7,
-        8, 8, 9, 9, 10, 10),
+      c(1, 2, 3, 4, 5, 6, 6,
+        7, 7, 7, 7, 11, 11, 11,
+        8, 8, 8, 9, 9, 10, 10),
       nrow = 3,
       byrow = TRUE
     ),
-    widths = c(1.0, 1.0, 1.0, 1.0, 1.0, 1.25),
+    widths = c(1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.15),
     heights = c(0.82, 1.45, 1.25)
   )
 
@@ -450,19 +518,19 @@ render_dashboard <- function(file_name) {
 
   draw_card(
     "No-Sketch Runtime",
-    sprintf("%.1f%% faster", no_sketch_speedup_pct),
+    sprintf("%.2fx faster", old_s$wall_mean / new_s$wall_mean),
     sprintf("%.2fs vs %.2fs", new_s$wall_mean, old_s$wall_mean),
     "#009E73"
   )
   draw_card(
     "Query Mapping Gain",
-    sprintf("%.1f%% faster", query_speedup_pct),
+    sprintf("%.2fx faster", old_s$query_mean / new_s$query_mean),
     sprintf("%.2fs vs %.2fs", new_s$query_mean, old_s$query_mean),
     "#0072B2"
   )
   draw_card(
     "Reference Build",
-    sprintf("%.1f%% faster", ref_build_speedup_pct),
+    sprintf("%.2fx faster", old_s$db_mean / new_s$db_mean),
     sprintf("%.2fs vs %.2fs", new_s$db_mean, old_s$db_mean),
     "#7F7F7F"
   )
@@ -474,13 +542,13 @@ render_dashboard <- function(file_name) {
   )
   draw_card(
     "Batch=5 Runtime",
-    sprintf("%.1f%% faster", batch5_runtime_speedup_pct),
+    sprintf("%.2fx faster", old_s$wall_mean / batch5_s$wall_mean),
     sprintf("%.2fs vs %.2fs", batch5_s$wall_mean, old_s$wall_mean),
     variant_colors[["batch_5"]]
   )
   draw_card(
     "Batch=1 Peak RSS",
-    sprintf("%.1f%% lower", batch1_rss_reduction_pct),
+    sprintf("%.2fx lower", old_s$rss_mean_gb / batch1_s$rss_mean_gb),
     sprintf("%.2f GiB vs %.2f GiB", batch1_s$rss_mean_gb, old_s$rss_mean_gb),
     variant_colors[["batch_1"]]
   )
@@ -492,6 +560,7 @@ render_dashboard <- function(file_name) {
   )
   draw_memory_panel()
   draw_relative_change_panel()
+  draw_all_v_all_panel()
   draw_notes_panel()
 
   mtext("FastANI Publication Benchmark Dashboard", outer = TRUE, cex = 1.62, font = 2, col = text_primary, line = 2.25)
@@ -504,5 +573,6 @@ write_summary_tables()
 render_dashboard("publication_performance_dashboard.png")
 
 message("Read publication metrics from: ", csv_path)
+message("Read all-v-all metrics from: ", all_v_all_path)
 message("Wrote publication dashboard to: ", file.path(out_dir, "publication_performance_dashboard.png"))
 message("Wrote summary tables to: ", file.path(out_dir, "publication_summary_by_variant.tsv"))

@@ -24,6 +24,8 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Related commits: `baa5571`, `a7cfea2`
 - Built publication-oriented benchmarking and dashboard materials, including repeatable benchmarking scripts, validation outputs, and visual summaries.
   Related commits: `24d5e5b`, `e54bda3`, `3ebaf07`, `e9c4c21`
+- Restored sketch-backed output parity and added full all-v-all reporting after fixing sketch metadata and release-mode filtering behavior.
+  Related commits: `f613abd`, `c85d035`, `6c4cb6a`
 
 ## Correctness And Behavioral Fixes
 
@@ -34,6 +36,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
 - Reverted or reworked a few performance changes that were not safe or beneficial in practice.
   Why: some candidate micro-optimizations either regressed performance or were not stable enough to keep.
   Related commits: `78ac943`, `9b8871e`, `accdccc`, `a68d2eb`
+
+- Restored correct sketch-backed release-mode filtering and reference identity handling.
+  Why: sketch mode had started reporting different row counts in release builds because reference lengths and file identities were not preserved correctly through the sketch path.
+  Related commit: `f613abd`
 
 ## Query Mapping Performance
 
@@ -179,6 +185,14 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: the main user-facing tradeoff is now a memory/runtime curve rather than a binary low-memory option.
   Related commit: `3ebaf07`
 
+- Added full all-v-all summary/report generation and folded the larger benchmark into the dashboard.
+  Why: capture the original-vs-new comparison at full `genome-list.txt` scale and document the benchmark host, CPU details, and runtime breakdown cleanly.
+  Related commit: `c85d035`
+
+- Refreshed the publication dashboard and summary tables after rerunning the current release modes and tightening the validation notes.
+  Why: keep the manuscript-facing figures synchronized with the latest benchmark values and the corrected sketch-output path.
+  Related commit: `6c4cb6a`
+
 ## Benchmark-Derived Technical Observations
 
 - Current no-sketch release-mode runs are measurably faster than the original baseline on the maintained half-list benchmark, with the biggest gain coming from query mapping rather than reference build.
@@ -191,6 +205,9 @@ The intent is to help a technical reviewer understand what changed, why it chang
   - `batch-size=1` greatly lowers peak memory while remaining faster than the original tool
   - `batch-size=5` is still far below original runtime while recovering much of the overhead of one-shard-at-a-time execution
   Evidence path: `benchmark/publication_runs.csv`, `benchmark/plots/publication_summary_by_variant.tsv`
+
+- The corrected sketch-backed full all-v-all workflow is now faster than the original baseline while preserving row-count parity.
+  Evidence path: `benchmark/all_v_all_summary.csv`, `benchmark/all_v_all_report.txt`
 
 ## Reviewer Notes
 
