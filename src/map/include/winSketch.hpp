@@ -177,10 +177,12 @@ namespace skch
         //sequence counter while parsing file
         seqno_t seqCounter = 0;
 
-        // PERF: reserve space to avoid repeated reallocations while collecting minimizers
-        // Heuristic: bacterial refs are a few Mbp; windowSize ~ 24; this gives O(2e5-5e5) minimizers.
-        // If this guess is off, reserve() is still safe (just a hint to the allocator).
-        const size_t estMinimizers = 500000;
+        // Reserve once for the full reference set to reduce geometric growth of
+        // the global minimizer vector without forcing the per-contig reallocations
+        // that previously regressed build time.
+        const int safeWindow = std::max(1, param.windowSize);
+        const size_t estMinimizers =
+          static_cast<size_t>(std::max<uint64_t>(500000, param.referenceSize / safeWindow));
         this->minimizerIndex.reserve(estMinimizers);
 
         if ( omp_get_thread_num() == 0)
