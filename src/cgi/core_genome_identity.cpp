@@ -91,6 +91,7 @@ int core_genome_identity(int argc, char **argv)
     if(parameters.loadSketchMode)
     {
       parameters_split[i].refSequences.clear();
+      parameters_split[i].refSequenceLengths.clear();
 
       size_t prev = 0;
       for(size_t g = 0; g < referSketch.sequencesByFileInfo.size(); g++)
@@ -98,10 +99,23 @@ int core_genome_identity(int argc, char **argv)
         size_t end = static_cast<size_t>(referSketch.sequencesByFileInfo[g]);
 
         std::string genomeName = "sketch_ref_" + std::to_string(g);
-        if(prev < referSketch.metadata.size())
+        if(g < referSketch.referenceFiles.size() && !referSketch.referenceFiles[g].empty())
+          genomeName = referSketch.referenceFiles[g];
+        else if(prev < referSketch.metadata.size())
           genomeName = referSketch.metadata[prev].name;
 
+        uint64_t genomeLen = 0;
+        for(size_t contigId = prev; contigId < end && contigId < referSketch.metadata.size(); contigId++)
+        {
+          const uint64_t contigLen = static_cast<uint64_t>(referSketch.metadata[contigId].len);
+          const uint64_t usableLen =
+            (contigLen / static_cast<uint64_t>(parameters.minReadLength)) *
+            static_cast<uint64_t>(parameters.minReadLength);
+          genomeLen += usableLen;
+        }
+
         parameters_split[i].refSequences.push_back(genomeName);
+        parameters_split[i].refSequenceLengths.push_back(genomeLen);
         prev = end;
       }
     }
@@ -218,13 +232,24 @@ int core_genome_identity(int argc, char **argv)
 
   if(parameters.loadSketchMode)
   {
-    parameters.refSequences.clear();
+    size_t totalRefs = 0;
+    for(uint64_t i = 0; i < parameters.threads; i++)
+      totalRefs += parameters_split[i].refSequences.size();
+
+    parameters.refSequences.assign(totalRefs, "");
+    parameters.refSequenceLengths.assign(totalRefs, 0);
   
     for(uint64_t i = 0; i < parameters.threads; i++)
     {
-      for(const auto &name : parameters_split[i].refSequences)
+      for(size_t localIdx = 0; localIdx < parameters_split[i].refSequences.size(); localIdx++)
       {
-        parameters.refSequences.push_back(name);
+        size_t globalIdx = localIdx * static_cast<size_t>(parameters.threads) + static_cast<size_t>(i);
+        if(globalIdx < totalRefs)
+        {
+          parameters.refSequences[globalIdx] = parameters_split[i].refSequences[localIdx];
+          if(localIdx < parameters_split[i].refSequenceLengths.size())
+            parameters.refSequenceLengths[globalIdx] = parameters_split[i].refSequenceLengths[localIdx];
+        }
       }
     }
   }

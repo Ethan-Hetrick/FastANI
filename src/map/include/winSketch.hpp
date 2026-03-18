@@ -74,6 +74,9 @@ namespace skch
        */
       std::vector< seqno_t > sequencesByFileInfo;
 
+      // Original reference file paths, one per genome/file in sequencesByFileInfo.
+      std::vector<std::string> referenceFiles;
+
       //Index for fast seed lookup
       /*
        * [minimizer #1] -> [pos1, pos2, pos3 ...]
@@ -173,6 +176,7 @@ namespace skch
 
       void build()
       {
+        this->referenceFiles = param.refSequences;
 
         //sequence counter while parsing file
         seqno_t seqCounter = 0;

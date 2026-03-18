@@ -32,6 +32,7 @@ namespace skch
     float percentageIdentity;                         //user defined threshold for good similarity
     double p_value;                                   //user defined threshold for p value
     std::vector<std::string> refSequences;            //reference sequence(s)
+    std::vector<uint64_t> refSequenceLengths;         //reference genome lengths aligned with refSequences when available
     std::vector<std::string> querySequences;          //query sequence(s)
     std::string outFileName;                          //output file name
     std::string writeRefSketchFile = "";

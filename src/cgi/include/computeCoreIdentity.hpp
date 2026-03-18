@@ -97,7 +97,19 @@ namespace cgi
       gzclose(fp); //close the file handler 
     }
 
-    if(!parameters.loadSketchMode)
+    if(parameters.loadSketchMode)
+    {
+      for(size_t i = 0; i < parameters.refSequences.size(); i++)
+      {
+        uint64_t genomeLen = 0;
+
+        if(i < parameters.refSequenceLengths.size())
+          genomeLen = parameters.refSequenceLengths[i];
+
+        genomeLengths[parameters.refSequences[i]] = genomeLen;
+      }
+    }
+    else
     {
       for(auto &e : parameters.refSequences)
       {
@@ -429,8 +441,11 @@ namespace cgi
       std::string qryGenome = parameters.querySequences[e.qryGenomeId];
       std::string refGenome = parameters.refSequences[e.refGenomeId];
 
-      assert(genomeLengths.find(qryGenome) != genomeLengths.end());
-      assert(genomeLengths.find(refGenome) != genomeLengths.end());
+      if(genomeLengths.find(qryGenome) == genomeLengths.end() ||
+         genomeLengths.find(refGenome) == genomeLengths.end())
+      {
+        throw std::runtime_error("ERROR: missing genome length metadata while writing ANI output");
+      }
 
       uint64_t queryGenomeLength = genomeLengths[qryGenome];
       uint64_t refGenomeLength = genomeLengths[refGenome]; 
@@ -509,8 +524,11 @@ namespace cgi
       std::string qryGenome = parameters.querySequences[e.qryGenomeId];
       std::string refGenome = parameters.refSequences[e.refGenomeId];
 
-      assert(genomeLengths.find(qryGenome) != genomeLengths.end());
-      assert(genomeLengths.find(refGenome) != genomeLengths.end());
+      if(genomeLengths.find(qryGenome) == genomeLengths.end() ||
+         genomeLengths.find(refGenome) == genomeLengths.end())
+      {
+        throw std::runtime_error("ERROR: missing genome length metadata while writing ANI matrix output");
+      }
 
       uint64_t queryGenomeLength = genomeLengths[qryGenome];
       uint64_t refGenomeLength = genomeLengths[refGenome]; 
