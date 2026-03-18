@@ -15,49 +15,52 @@ Clone the repository and follow [`INSTALL.txt`](INSTALL.txt) to build the projec
 
 Prebuilt dependency-free binaries for Linux and macOS are also available from the [releases page](https://github.com/ParBliSS/FastANI/releases).
 
+After installation, the executable is available as `fastANI`.
+If you are running directly from the build tree without installing, use `build/fastANI`.
+
 ## Quick start
 
 Print the help page:
 
 ```sh
-./build/fastANI --help
+fastANI --help
 ```
 
 Compute ANI for a single query genome against a single reference genome:
 
 ```sh
-./build/fastANI -q QUERY_GENOME -r REFERENCE_GENOME -o output.txt
+fastANI -q QUERY_GENOME -r REFERENCE_GENOME -o output.txt
 ```
 
 Compute ANI for a single query genome against many references:
 
 ```sh
-./build/fastANI -q QUERY_GENOME --refList references.txt -o output.txt
+fastANI -q QUERY_GENOME --refList references.txt -o output.txt
 ```
 
 Compute ANI for many queries against many references:
 
 ```sh
-./build/fastANI --queryList queries.txt --refList references.txt -o output.txt
+fastANI --queryList queries.txt --refList references.txt -o output.txt
 ```
 
 Use sketch-backed querying to avoid rebuilding the reference database each time:
 
 ```sh
-./build/fastANI --refList references.txt --write-ref-sketch reference_sketch
-./build/fastANI -q QUERY_GENOME --sketch reference_sketch -o output.txt
+fastANI --refList references.txt --write-ref-sketch reference_sketch
+fastANI -q QUERY_GENOME --sketch reference_sketch -o output.txt
 ```
 
 Use low-memory sketch-backed querying when RAM is limited:
 
 ```sh
-./build/fastANI -q QUERY_GENOME --sketch reference_sketch --low-memory -o output.txt
+fastANI -q QUERY_GENOME --sketch reference_sketch --low-memory -o output.txt
 ```
 
 Show the installed version:
 
 ```sh
-./build/fastANI --version
+fastANI --version
 ```
 
 ## Input files
@@ -129,25 +132,25 @@ Guidance:
 ### 1 vs 1 with extended metrics
 
 ```sh
-./build/fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt
+fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt
 ```
 
 ### 1 vs all from a prebuilt sketch
 
 ```sh
-./build/fastANI -q query.fa --sketch reference_sketch -o output.txt
+fastANI -q query.fa --sketch reference_sketch -o output.txt
 ```
 
 ### 1 vs all from a prebuilt sketch with visualization output
 
 ```sh
-./build/fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt
+fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt
 ```
 
 ### 1 vs all from a prebuilt sketch with lower memory usage
 
 ```sh
-./build/fastANI -q query.fa --sketch reference_sketch --low-memory -o output.txt
+fastANI -q query.fa --sketch reference_sketch --low-memory -o output.txt
 ```
 
 Notes:
@@ -164,7 +167,7 @@ Notes:
 ### All vs all with matrix output
 
 ```sh
-./build/fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
+fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
 ```
 
 ## Output
@@ -202,7 +205,7 @@ Two small test genomes are available under [`tests/data`](tests/data).
 Example:
 
 ```sh
-./build/fastANI \
+fastANI \
   -q tests/data/Shigella_flexneri_2a_01.fna \
   -r tests/data/Escherichia_coli_str_K12_MG1655.fna \
   -o fastani.out
@@ -223,13 +226,13 @@ FastANI can persist reference sketches and reuse them across runs.
 Write a sketch database:
 
 ```sh
-./build/fastANI --refList references.txt --write-ref-sketch reference_sketch
+fastANI --refList references.txt --write-ref-sketch reference_sketch
 ```
 
 Reuse the sketch database:
 
 ```sh
-./build/fastANI --queryList queries.txt --sketch reference_sketch -o output.txt
+fastANI --queryList queries.txt --sketch reference_sketch -o output.txt
 ```
 
 This is especially useful when the same reference database is queried repeatedly.
@@ -246,7 +249,7 @@ Compatibility notes:
 FastANI can emit reciprocal mapping information for visualization in pairwise or multi-genome comparisons.
 
 ```sh
-./build/fastANI -q B_quintana.fna -r B_henselae.fna --visualize -o fastani.out
+fastANI -q B_quintana.fna -r B_henselae.fna --visualize -o fastani.out
 Rscript scripts/visualize.R B_quintana.fna B_henselae.fna fastani.out.visual
 ```
 

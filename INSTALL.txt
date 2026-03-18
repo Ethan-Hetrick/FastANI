@@ -1,47 +1,108 @@
-This software requires c++11 to build,
-which is available in GCC >= 4.8 (on linux) and Clang >= 3.3 (on mac)
+FastANI build and installation guide
+====================================
 
-Dependencies:
--------------
-   - CMake 3.2 or above ( https://cmake.org/ )
-   - either...
-       GNU Scientific Library ( http://www.gnu.org/software/gsl/ )
-     or..
-       Boost Library ( http://www.boost.org ) (see "-DBOOST_ROOT" below)
-   - Zlib ( included with OS X and most Linuxes, http://www.zlib.net ) *
-   - C++ compiler with C++11 and openmp support
-       Note for macOS users: Use "libomp" to link openmp with Clang
-       libomp is available through brew ( https://formulae.brew.sh/formula/libomp )
+Requirements
+------------
 
+- CMake 3.2 or newer
+- A C++11 compiler with OpenMP support
+  - GCC >= 4.8 on Linux
+  - Clang >= 3.3 on macOS
+- Zlib
+- One of:
+  - GNU Scientific Library (GSL)
+  - Boost
 
-Steps:
-------
-   mkdir build 
-   cd build
-   cmake .. -DCMAKE_BUILD_TYPE=Release [--install-prefix ...  -DGSL_SHARED=... -DGSL_ROOT_DIR=... -DBOOST_ROOT=...]
-   cmake --build .
+macOS note:
+- If you build with Clang, install `libomp` so OpenMP is available.
 
 
-Products:
----------
-   - Executable fastANI built in the build directory
-
-
-cmake configure options:
+Recommended performance build
 -----------------------------
---install-prefix </path/to/install>
-  Installs binaries to bin/ and libraries to lib/ within this path. The default
-  is /usr/local/, which will typically require sudo for make install. Must be
-  absolute path.
-  lib/.
--DGSL_ROOT_DIR=</path/to/gsl_dir>
-  Where to find the GNU Scientific library install if not in the default
-  location (/usr/local). Must be absolute path and should not include bin/ or
--DGSL_SHARED=OFF
-  Statically link the GNU Scientific library instead of dynamically. Be mindful
-  of licensure if distributing.
--DBOOST_ROOT=</path/to/boost/>
-  Use Boost from this location, instead of GSL. Must be absolute path and should
-  not include bin/ or lib/. Will be statically linked. Be mindful of licensure
-  if distributing.
 
+For best runtime performance, build FastANI in `Release` mode:
+
+```sh
+rm -rf build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+cmake --build build -j
+```
+
+This produces the executable at:
+
+```text
+build/fastANI
+```
+
+If you want debug symbols while still keeping optimized code for benchmarking,
+you can use:
+
+```sh
+rm -rf build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=RelWithDebInfo
+cmake --build build -j
+```
+
+
+Install to a prefix
+-------------------
+
+To install FastANI under a specific prefix:
+
+```sh
+rm -rf build
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/path/to/install
+cmake --build build -j
+cmake --install build
+```
+
+This installs the executable to:
+
+```text
+/path/to/install/bin/fastANI
+```
+
+If you do not set `CMAKE_INSTALL_PREFIX`, the default is typically `/usr/local`,
+which may require elevated privileges during installation.
+
+
+Dependency configuration
+------------------------
+
+If CMake cannot find GSL or Boost automatically, you can provide paths
+explicitly during configuration.
+
+Examples:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DGSL_ROOT_DIR=/path/to/gsl
+```
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBOOST_ROOT=/path/to/boost
+```
+
+
+Useful CMake options
+--------------------
+
+`-DCMAKE_INSTALL_PREFIX=/path/to/install`
+- Install prefix used by `cmake --install build`.
+
+`-DGSL_ROOT_DIR=/path/to/gsl`
+- Location of a non-default GSL installation.
+
+`-DGSL_SHARED=OFF`
+- Statically link GSL instead of dynamically.
+
+`-DBOOST_ROOT=/path/to/boost`
+- Use Boost from this location instead of GSL discovery defaults.
+
+
+Notes
+-----
+
+- `Release` builds are recommended for actual performance evaluation.
+- If you are running directly from the build tree, invoke `build/fastANI`.
+- If you install FastANI, you can invoke it as `fastANI` once the install
+  prefix `bin/` directory is on your `PATH`.
