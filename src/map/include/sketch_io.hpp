@@ -18,7 +18,7 @@ namespace skch
     if(!out)
       throw std::runtime_error("ERROR: cannot open sketch output file");
 
-    uint32_t version = 1;
+    uint32_t version = 2;
     out.write(reinterpret_cast<const char*>(&version), sizeof(version));
     out.write(reinterpret_cast<const char*>(&parameters.kmerSize), sizeof(parameters.kmerSize));
     out.write(reinterpret_cast<const char*>(&parameters.windowSize), sizeof(parameters.windowSize));
@@ -41,6 +41,16 @@ namespace skch
     {
       out.write(reinterpret_cast<const char*>(sketch.sequencesByFileInfo.data()),
                 nSeqByFile * sizeof(sketch.sequencesByFileInfo[0]));
+    }
+
+    // original reference file names
+    size_t nRefFiles = sketch.referenceFiles.size();
+    out.write(reinterpret_cast<const char*>(&nRefFiles), sizeof(nRefFiles));
+    for(const auto& refFile : sketch.referenceFiles)
+    {
+      size_t nameLen = refFile.size();
+      out.write(reinterpret_cast<const char*>(&nameLen), sizeof(nameLen));
+      out.write(refFile.data(), nameLen);
     }
 
     // minimizerIndex
@@ -87,7 +97,7 @@ namespace skch
 
     uint32_t version = 0;
     in.read(reinterpret_cast<char*>(&version), sizeof(version));
-    if(version != 1)
+    if(version != 1 && version != 2)
       throw std::runtime_error("ERROR: unsupported sketch version");
 
     int savedKmer = 0;
@@ -125,6 +135,27 @@ namespace skch
     {
       in.read(reinterpret_cast<char*>(sketch.sequencesByFileInfo.data()),
               nSeqByFile * sizeof(sketch.sequencesByFileInfo[0]));
+    }
+
+    if(version >= 2)
+    {
+      size_t nRefFiles = 0;
+      in.read(reinterpret_cast<char*>(&nRefFiles), sizeof(nRefFiles));
+      sketch.referenceFiles.resize(nRefFiles);
+
+      for(size_t i = 0; i < nRefFiles; i++)
+      {
+        size_t nameLen = 0;
+        in.read(reinterpret_cast<char*>(&nameLen), sizeof(nameLen));
+
+        sketch.referenceFiles[i].resize(nameLen);
+        if(nameLen > 0)
+          in.read(&sketch.referenceFiles[i][0], nameLen);
+      }
+    }
+    else
+    {
+      sketch.referenceFiles.clear();
     }
 
     // minimizerIndex

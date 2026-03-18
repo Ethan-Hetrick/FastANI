@@ -1,0 +1,4 @@
+label,phase_label,output_rows,db_sec,query_sec,post_sec,wall_sec,user_cpu_sec,system_cpu_sec,cpu_percent,max_rss_kb,fs_in,fs_out
+Old tool full all-v-all,Reference build,1310658,56.7208,967.570274,0.401327,1076.02,11283.27,38.14,1052,11436892,0,602256
+New tool sketch build,Reference sketch build,0,22.52,0,0,22.52,181.17,27.63,926,10703532,0,7294096
+New tool sketch query,Sketch load,1224878,3.17972,435.363691,0.337371,483.48,7812.59,84.35,1633,11190948,0,611464
