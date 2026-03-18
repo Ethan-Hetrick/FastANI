@@ -117,6 +117,36 @@ Guidance:
 - `-h, --help`: print the command-line help page.
 - `-v, --version`: print the program version.
 
+Batch-size memory heuristic:
+
+- As a rough rule of thumb, peak RAM is often close to `0.10 GiB + 2.8 x (sum of sketch shard sizes loaded together)`.
+- For balanced sketches, you can approximate this as `0.10 GiB + 2.8 x batch_size x average_shard_size`.
+- For a safer request on HPC or cloud systems, estimate from the largest shard instead of the average, then add another `20%` headroom for scheduler requests.
+
+Example command for estimating query-time memory from an existing sketch prefix:
+
+```sh
+# Sketch prefix and desired shard batch size.
+prefix=reference_sketch
+batch=5
+
+# Use the largest shard for a conservative estimate.
+largest=$(stat -c '%s' "${prefix}".* | sort -nr | head -1)
+
+# Convert bytes into a rough peak RAM estimate and a safer request.
+awk -v bytes="$largest" -v batch="$batch" '
+BEGIN {
+  peak = 0.10 + 2.8 * batch * bytes / 1073741824
+  req = 1.2 * peak
+
+  printf("estimated_peak_rss=%.2f GiB\n", peak)
+  printf("suggested_request=%.2f GiB\n", req)
+}'
+```
+
+This uses the largest sketch shard as a conservative sizing input and reports a safer scheduler request.
+Using the average shard size instead would be a more aggressive estimate and may underpredict memory on uneven datasets.
+
 ### Compatibility notes
 
 - `--sketch` is used instead of `--ref` or `--refList`.
@@ -239,6 +269,43 @@ fastANI --queryList queries.txt --sketch reference_sketch -o output.txt
 ```
 
 This is especially useful when the same reference database is queried repeatedly.
+
+Sketch-build memory heuristic:
+
+- As a rough rule of thumb for default-style sketch creation, peak RAM often grows approximately linearly with total reference sequence content.
+- A practical planning estimate is `peak_rss_gib ~= 0.5 + 7 x total_genome_gbp`.
+- For a safer HPC or cloud request, round up to about `requested_ram_gib ~= 1 + 9 x total_genome_gbp`.
+- This is only a heuristic: actual memory use depends on the dataset, repetitiveness, contig structure, and mapping parameters such as `--window-size`.
+
+Example command for estimating sketch-build memory from a FASTA `--refList`:
+
+```sh
+# Text file containing one reference FASTA path per line.
+ref_list=references.txt
+
+# Count non-header sequence characters across all references.
+bases=$(
+  while read -r f; do
+    gzip -cd "$f" 2>/dev/null || cat "$f"
+  done < "$ref_list" |
+  grep -v '^>' |
+  tr -d '[:space:]' |
+  wc -c
+)
+
+# Convert total bases into a conservative sketch-build request.
+awk -v b="$bases" '
+BEGIN {
+  gbp = b / 1e9
+  req = 1 + 9 * gbp
+
+  printf("total_bases=%d (%.3f Gbp)\n", b, gbp)
+  printf("suggested_request=%.2f GiB\n", req)
+}'
+```
+
+This estimates total genomic content by removing FASTA header lines, stripping whitespace, and counting sequence characters, then converts that total into a conservative memory request.
+This request formula is intentionally conservative; a more aggressive estimate would use the lower `0.5 + 7 x total_genome_gbp` rule of thumb instead.
 
 Compatibility notes:
 
