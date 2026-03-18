@@ -51,10 +51,10 @@ fastANI --refList references.txt --write-ref-sketch reference_sketch
 fastANI -q QUERY_GENOME --sketch reference_sketch -o output.txt
 ```
 
-Use low-memory sketch-backed querying when RAM is limited:
+Use batched sketch-backed querying when RAM is limited:
 
 ```sh
-fastANI -q QUERY_GENOME --sketch reference_sketch --low-memory -o output.txt
+fastANI -q QUERY_GENOME --sketch reference_sketch --batch-size 1 -o output.txt
 ```
 
 Show the installed version:
@@ -86,7 +86,7 @@ fastANI --version
 
 - `-o, --output`: write the main tabular ANI results to this file.
 - `--write-ref-sketch`: write a reference sketch database and exit. This requires `--ref` or `--refList` and does not use query input.
-- `--matrix`: also write ANI values to `<output>.matrix` as a lower-triangular PHYLIP-style matrix. This is incompatible with `--low-memory`.
+- `--matrix`: also write ANI values to `<output>.matrix` as a lower-triangular PHYLIP-style matrix. This is incompatible with `--batch-size`.
 - `--visualize`: also write fragment mappings to `<output>.visual`. This works for pairwise and multi-genome runs, though the bundled plotting example is oriented toward one pair at a time.
 - `--extended-metrics`: add extra fragment-level ANI summary fields to the main tabular output only.
 - `--header`: add a header row to the main tabular output only.
@@ -112,7 +112,7 @@ Guidance:
 ### Execution options
 
 - `-t, --threads`: number of threads to use.
-- `--low-memory`: load one sketch bin at a time during sketch-backed querying. This requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`.
+- `--batch-size`: load sketch shards in batches during sketch-backed querying. This requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. Use `1` for the lowest memory footprint, intermediate values such as `5` to trade more RAM for better runtime, or omit it to load all shards at once.
 - `-s, --sanityCheck`: run the built-in sanity check mode.
 - `-h, --help`: print the command-line help page.
 - `-v, --version`: print the program version.
@@ -121,7 +121,7 @@ Guidance:
 
 - `--sketch` is used instead of `--ref` or `--refList`.
 - `--write-ref-sketch` requires reference input and does not use query input.
-- `--low-memory` requires `--sketch` and cannot be combined with `--matrix` or `--write-ref-sketch`.
+- `--batch-size` requires `--sketch` and cannot be combined with `--matrix` or `--write-ref-sketch`.
 - `--header` and `--extended-metrics` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
 - `--visualize` works for pairwise and multi-genome runs, but the bundled `scripts/visualize.R` example is pairwise-oriented.
 - Sketches written with one `--window-size` are not interchangeable with runs using a different `--window-size`.
@@ -147,17 +147,20 @@ fastANI -q query.fa --sketch reference_sketch -o output.txt
 fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt
 ```
 
-### 1 vs all from a prebuilt sketch with lower memory usage
+### 1 vs all from a prebuilt sketch with controlled shard batching
 
 ```sh
-fastANI -q query.fa --sketch reference_sketch --low-memory -o output.txt
+fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt
 ```
 
 Notes:
 
-- `--low-memory` is available only with `--sketch`.
-- `--low-memory` is incompatible with `--matrix` and `--write-ref-sketch`.
-- `--low-memory` trades runtime for lower peak memory usage by loading one sketch bin at a time.
+- `--batch-size` is available only with `--sketch`.
+- `--batch-size` is incompatible with `--matrix` and `--write-ref-sketch`.
+- `--batch-size 1` gives the lowest peak memory usage by loading one sketch shard at a time.
+- Larger values such as `--batch-size 5` reduce the batching overhead and are often a better choice when you have moderate memory available.
+- Omitting `--batch-size` loads all sketch shards at once and gives the best sketch-backed runtime when memory is not a bottleneck.
+- `--batch-size` should be at most the number of sketch shards available for the run; values above that behave like loading all shards.
 - `--window-size` sets the minimizer window size manually instead of using FastANI's internally recommended value.
 - Larger `--window-size` values generally reduce minimizer density and can speed up runs at the cost of sensitivity.
 - Non-default mapping parameters, especially `--window-size`, can change reported ANI values and which hits appear in the output.
@@ -240,7 +243,7 @@ This is especially useful when the same reference database is queried repeatedly
 Compatibility notes:
 
 - When `--sketch` is used, reference sketches are loaded from disk instead of rebuilding them from `--ref` or `--refList`.
-- `--low-memory` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
+- `--batch-size` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
 - `--window-size` changes the sketching parameters, so sketch files written with one window size are not interchangeable with runs using a different window size.
 - Changing mapping parameters can change results, so sketch-backed runs should only be compared directly when they use compatible sketch and mapping settings.
 

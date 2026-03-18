@@ -23,20 +23,22 @@ for (col in numeric_cols) {
 df$max_rss_gb <- df$max_rss_kb / (1024 * 1024)
 df$total_cpu_sec <- df$user_cpu_sec + df$system_cpu_sec
 
-variant_levels <- c("old_release", "new_release", "standard", "low_memory")
+variant_levels <- c("old_release", "new_release", "standard", "batch_5", "batch_1")
 variant_plot_labels <- c(
   "Old release\nno sketch",
   "Current release\nno sketch",
-  "Sketch query\nstandard",
-  "Sketch query\nlow-memory"
+  "Sketch query\nall shards",
+  "Sketch query\nbatch=5",
+  "Sketch query\nbatch=1"
 )
 names(variant_plot_labels) <- variant_levels
 
 variant_table_labels <- c(
   "Old release no sketch",
   "Current release no sketch",
-  "Sketch query standard",
-  "Sketch query low-memory"
+  "Sketch query all shards",
+  "Sketch query batch=5",
+  "Sketch query batch=1"
 )
 names(variant_table_labels) <- variant_levels
 
@@ -44,7 +46,8 @@ variant_colors <- c(
   old_release = "#7F7F7F",
   new_release = "#0072B2",
   standard = "#009E73",
-  low_memory = "#E69F00"
+  batch_5 = "#E69F00",
+  batch_1 = "#D55E00"
 )
 
 phase_colors <- c(
@@ -108,15 +111,18 @@ get_summary <- function(variant_name) {
 old_s <- get_summary("old_release")
 new_s <- get_summary("new_release")
 std_s <- get_summary("standard")
-low_s <- get_summary("low_memory")
+batch5_s <- get_summary("batch_5")
+batch1_s <- get_summary("batch_1")
 
 no_sketch_speedup_pct <- (old_s$wall_mean - new_s$wall_mean) / old_s$wall_mean * 100
 query_speedup_pct <- (old_s$query_mean - new_s$query_mean) / old_s$query_mean * 100
 ref_build_speedup_pct <- (old_s$db_mean - new_s$db_mean) / old_s$db_mean * 100
-sketch_setup_speedup_x <- new_s$db_mean / std_s$db_mean
-sketch_end_to_end_speedup_x <- new_s$wall_mean / std_s$wall_mean
-lowmem_rss_reduction_pct <- (std_s$rss_mean_gb - low_s$rss_mean_gb) / std_s$rss_mean_gb * 100
-lowmem_slowdown_x <- low_s$wall_mean / std_s$wall_mean
+sketch_setup_speedup_x <- old_s$db_mean / std_s$db_mean
+sketch_end_to_end_speedup_x <- old_s$wall_mean / std_s$wall_mean
+batch5_rss_reduction_pct <- (old_s$rss_mean_gb - batch5_s$rss_mean_gb) / old_s$rss_mean_gb * 100
+batch5_runtime_speedup_pct <- (old_s$wall_mean - batch5_s$wall_mean) / old_s$wall_mean * 100
+batch1_rss_reduction_pct <- (old_s$rss_mean_gb - batch1_s$rss_mean_gb) / old_s$rss_mean_gb * 100
+batch1_runtime_speedup_pct <- (old_s$wall_mean - batch1_s$wall_mean) / old_s$wall_mean * 100
 
 validation_lines <- if (file.exists(validation_path)) readLines(validation_path, warn = FALSE) else character()
 validation_all_match <- length(validation_lines) > 0 && all(grepl("MATCH$", validation_lines))
@@ -226,12 +232,12 @@ draw_metric_bars <- function(variants, values, title, ylab, subtitle, point_col_
 }
 
 draw_memory_panel <- function() {
-  variants <- c("old_release", "new_release", "standard", "low_memory")
+  variants <- c("old_release", "new_release", "standard", "batch_5", "batch_1")
   sub <- summary_df[match(variants, as.character(summary_df$variant)), ]
   vals <- sub$rss_mean_gb
   cols <- unname(variant_colors[variants])
   xmax <- max(vals) * 1.25
-  labels <- c("Old no-sketch", "Current no-sketch", "Standard sketch", "Low-memory")
+  labels <- c("Old no-sketch", "Current no-sketch", "All shards", "Batch=5", "Batch=1")
 
   par(mar = c(4.5, 10, 4, 2) + 0.1)
   mids <- barplot(
@@ -274,30 +280,35 @@ draw_relative_change_panel <- function() {
     "No-sketch total runtime",
     "No-sketch query mapping",
     "No-sketch DB build",
-    "Sketch DB/load",
-    "Sketch total runtime",
-    "Low-memory RSS",
-    "Low-memory runtime"
+    "All-shards sketch DB/load",
+    "All-shards sketch runtime",
+    "Batch=5 runtime",
+    "Batch=5 RSS",
+    "Batch=1 runtime",
+    "Batch=1 RSS"
   )
 
   values <- c(
     new_s$wall_mean / old_s$wall_mean,
     new_s$query_mean / old_s$query_mean,
     new_s$db_mean / old_s$db_mean,
-    std_s$db_mean / new_s$db_mean,
-    std_s$wall_mean / new_s$wall_mean,
-    low_s$rss_mean_gb / std_s$rss_mean_gb,
-    low_s$wall_mean / std_s$wall_mean
+    std_s$db_mean / old_s$db_mean,
+    std_s$wall_mean / old_s$wall_mean,
+    batch5_s$wall_mean / old_s$wall_mean,
+    batch5_s$rss_mean_gb / old_s$rss_mean_gb,
+    batch1_s$wall_mean / old_s$wall_mean,
+    batch1_s$rss_mean_gb / old_s$rss_mean_gb
   )
 
   cols <- c(
     variant_colors[["new_release"]],
     variant_colors[["new_release"]],
-    variant_colors[["old_release"]],
-    "#56B4E9",
     variant_colors[["standard"]],
-    variant_colors[["low_memory"]],
-    variant_colors[["low_memory"]]
+    variant_colors[["standard"]],
+    variant_colors[["batch_5"]],
+    variant_colors[["batch_5"]],
+    variant_colors[["batch_1"]],
+    variant_colors[["batch_1"]]
   )
 
   y <- rev(seq_along(labels))
@@ -337,13 +348,14 @@ draw_notes_panel <- function() {
   short_variant_labels <- c(
     old_release = "Old no-sketch",
     new_release = "Current no-sketch",
-    standard = "Standard sketch",
-    low_memory = "Low-memory"
+    standard = "All shards",
+    batch_5 = "Batch=5",
+    batch_1 = "Batch=1"
   )
 
   text(0.07, 0.82, "Variant colors", adj = c(0, 0.5), cex = 0.92, font = 2, col = text_primary)
-  variant_y <- c(0.75, 0.67, 0.59, 0.51)
-  variant_keys <- c("old_release", "new_release", "standard", "low_memory")
+  variant_y <- c(0.75, 0.67, 0.59, 0.51, 0.43)
+  variant_keys <- c("old_release", "new_release", "standard", "batch_5", "batch_1")
   for (i in seq_along(variant_keys)) {
     rect(0.07, variant_y[i] - 0.022, 0.125, variant_y[i] + 0.022, col = variant_colors[[variant_keys[i]]], border = "#41505C")
     text(0.15, variant_y[i], short_variant_labels[[variant_keys[i]]], adj = c(0, 0.5), cex = 0.85, col = text_primary)
@@ -358,22 +370,22 @@ draw_notes_panel <- function() {
     text(0.66, phase_y[i], phase_labels[i], adj = c(0, 0.5), cex = 0.85, col = text_primary)
   }
 
-  segments(0.07, 0.42, 0.93, 0.42, col = panel_border, lwd = 1)
+  segments(0.07, 0.34, 0.93, 0.34, col = panel_border, lwd = 1)
 
   lines_to_show <- c(
-    sprintf("12 runs total: 4 variants x %d replicates", unique(summary_df$n)[1]),
+    sprintf("15 runs total: 5 variants x %d replicates", unique(summary_df$n)[1]),
     "Workload: 1 query vs 5,032 references",
     "Release builds; sketch test uses 8 shards"
   )
 
   for (i in seq_along(lines_to_show)) {
-    text(0.07, 0.32 - (i - 1) * 0.08, paste0("\u2022 ", lines_to_show[i]),
+    text(0.07, 0.28 - (i - 1) * 0.08, paste0("\u2022 ", lines_to_show[i]),
          adj = c(0, 0.5), cex = 0.88, col = text_primary)
   }
 
   status_col <- if (validation_all_match) "#2C8E5A" else "#C84C4C"
-  status_label <- if (validation_all_match) "10/10 recorded validation checks matched" else "One or more validation checks failed"
-  text(0.07, 0.08, status_label, adj = c(0, 0.5), cex = 0.98, font = 2, col = status_col)
+  status_label <- if (validation_all_match) "All recorded validation checks matched" else "One or more validation checks failed"
+  text(0.07, 0.05, status_label, adj = c(0, 0.5), cex = 0.92, font = 2, col = status_col)
 }
 
 write_summary_tables <- function() {
@@ -398,10 +410,12 @@ write_summary_tables <- function() {
       "current_vs_old_nosketch_speedup_pct",
       "current_vs_old_query_speedup_pct",
       "current_vs_old_reference_build_speedup_pct",
-      "prebuilt_sketch_vs_nosketch_db_setup_speedup_x",
-      "prebuilt_sketch_vs_nosketch_end_to_end_speedup_x",
-      "low_memory_vs_standard_rss_reduction_pct",
-      "low_memory_vs_standard_runtime_slowdown_x"
+      "all_shards_vs_old_db_setup_speedup_x",
+      "all_shards_vs_old_end_to_end_speedup_x",
+      "batch_5_vs_old_runtime_speedup_pct",
+      "batch_5_vs_old_rss_reduction_pct",
+      "batch_1_vs_old_runtime_speedup_pct",
+      "batch_1_vs_old_rss_reduction_pct"
     ),
     value = c(
       no_sketch_speedup_pct,
@@ -409,8 +423,10 @@ write_summary_tables <- function() {
       ref_build_speedup_pct,
       sketch_setup_speedup_x,
       sketch_end_to_end_speedup_x,
-      lowmem_rss_reduction_pct,
-      lowmem_slowdown_x
+      batch5_runtime_speedup_pct,
+      batch5_rss_reduction_pct,
+      batch1_runtime_speedup_pct,
+      batch1_rss_reduction_pct
     )
   )
   write.table(pairwise, file = pairwise_path, sep = "\t", quote = FALSE, row.names = FALSE)
@@ -451,35 +467,35 @@ render_dashboard <- function(file_name) {
     "#7F7F7F"
   )
   draw_card(
-    "Low-Memory RSS",
-    sprintf("%.1f%% lower", lowmem_rss_reduction_pct),
-    sprintf("%.2f GiB vs %.2f GiB", low_s$rss_mean_gb, std_s$rss_mean_gb),
-    "#E69F00"
-  )
-  draw_card(
-    "Low-Memory Runtime",
-    sprintf("%.2fx slower", lowmem_slowdown_x),
-    sprintf("%.2fs vs %.2fs", low_s$wall_mean, std_s$wall_mean),
-    "#D55E00"
-  )
-  draw_card(
-    "Reference Sketch Gain",
+    "Sketch DB Setup",
     sprintf("%.1fx faster", sketch_setup_speedup_x),
-    sprintf("%.2fs vs %.2fs", std_s$db_mean, new_s$db_mean),
+    sprintf("%.2fs vs %.2fs", std_s$db_mean, old_s$db_mean),
     "#56B4E9"
+  )
+  draw_card(
+    "Batch=5 Runtime",
+    sprintf("%.1f%% faster", batch5_runtime_speedup_pct),
+    sprintf("%.2fs vs %.2fs", batch5_s$wall_mean, old_s$wall_mean),
+    variant_colors[["batch_5"]]
+  )
+  draw_card(
+    "Batch=1 Peak RSS",
+    sprintf("%.1f%% lower", batch1_rss_reduction_pct),
+    sprintf("%.2f GiB vs %.2f GiB", batch1_s$rss_mean_gb, old_s$rss_mean_gb),
+    variant_colors[["batch_1"]]
   )
 
   draw_stacked_runtime(
-    c("old_release", "new_release", "standard", "low_memory"),
+    c("old_release", "new_release", "standard", "batch_5", "batch_1"),
     "Runtime Breakdown Across Execution Modes",
-    "Shared y-axis for direct comparison across no-sketch, sketch, and low-memory runs"
+    "Shared y-axis for direct comparison across no-sketch and sketch batch-size runs"
   )
   draw_memory_panel()
   draw_relative_change_panel()
   draw_notes_panel()
 
   mtext("FastANI Publication Benchmark Dashboard", outer = TRUE, cex = 1.62, font = 2, col = text_primary, line = 2.25)
-  mtext("Repeated Release-mode benchmarks: original vs current no-sketch performance, plus standard vs low-memory sketch queries", outer = TRUE, side = 3, line = 1.02, cex = 0.96, col = text_muted)
+  mtext("Repeated Release-mode benchmarks: original vs current no-sketch performance, plus all-shards, batch=5, and batch=1 sketch queries", outer = TRUE, side = 3, line = 1.02, cex = 0.96, col = text_muted)
   mtext(sprintf("Data source: %s", basename(csv_path)), outer = TRUE, side = 1, line = -1.5, cex = 0.85, col = text_muted)
   dev.off()
 }

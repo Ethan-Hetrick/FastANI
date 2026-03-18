@@ -47,6 +47,10 @@ int core_genome_identity(int argc, char **argv)
   //Final output vectors of ANI computation (one per thread; merged after parallel region)
   std::vector< std::vector<cgi::CGI_Results> > finalResults_by_thread(parameters.threads);
   std::vector<std::unique_ptr<skch::CachedQueryData>> cachedQueries(parameters.querySequences.size());
+  const int effectiveBatchSize =
+    (parameters.batchSize > 0)
+      ? std::min(parameters.batchSize, parameters.threads)
+      : parameters.threads;
 
   std::vector<bool> sanityCheck(parameters.threads, true);
   std::vector<float> ratioDiffs(parameters.threads, true);
@@ -144,15 +148,8 @@ int core_genome_identity(int argc, char **argv)
 
         std::unique_ptr<skch::Map> mapperPtr;
 
-        if(parameters.lowMemory && parameters.loadSketchMode)
+        if(parameters.batchSize > 0 && parameters.loadSketchMode)
         {
-          if(!cachedQueries[queryno])
-          {
-            cachedQueries[queryno] = std::make_unique<skch::CachedQueryData>(
-                skch::buildCachedQueryData(parameters_split[i],
-                                           parameters_split[i].querySequences[queryno]));
-          }
-
           totalQueryFragments = cachedQueries[queryno]->totalQueryFragments;
           mapperPtr = std::make_unique<skch::Map>(parameters_split[i], referSketch, *cachedQueries[queryno], fn);
         }
@@ -193,10 +190,22 @@ int core_genome_identity(int argc, char **argv)
               << "], skch::main, ready to exit the loop" << std::endl;
   };
 
-  if(parameters.lowMemory)
+  if(parameters.batchSize > 0 && parameters.loadSketchMode)
   {
-    for (uint64_t i = 0; i < parameters.threads; i++)
-      runReferenceSplit(i);
+    for(uint64_t queryno = 0; queryno < parameters.querySequences.size(); queryno++)
+    {
+      cachedQueries[queryno] = std::make_unique<skch::CachedQueryData>(
+          skch::buildCachedQueryData(parameters, parameters.querySequences[queryno]));
+    }
+
+    for(int batchStart = 0; batchStart < parameters.threads; batchStart += effectiveBatchSize)
+    {
+      const int batchEnd = std::min(batchStart + effectiveBatchSize, parameters.threads);
+
+#pragma omp parallel for schedule(static,1) num_threads(batchEnd - batchStart)
+      for (int i = batchStart; i < batchEnd; i++)
+        runReferenceSplit(static_cast<uint64_t>(i));
+    }
   }
   else
   {
@@ -253,7 +262,7 @@ int core_genome_identity(int argc, char **argv)
   if(parameters.matrixOutput)
     cgi::outputPhylip(parameters, genomeLengths, finalResults, fileName);
 
-  if(parameters.visualize && parameters.threads > 1 && !parameters.lowMemory)
+  if(parameters.visualize && parameters.threads > 1)
   {
     std::string outVisFile = fileName + ".visual";
     std::ofstream ofile(outVisFile);

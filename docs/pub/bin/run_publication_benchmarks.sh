@@ -138,8 +138,9 @@ run_sketch_build_once
 
 run_query_case "half_nosketch_t1" "old_release" "$OLD_BIN" "1" "build_reference_in_run" "$HALF_LIST" -q "$QUERY" --rl "$HALF_LIST" -t 1
 run_query_case "half_nosketch_t1" "new_release" "$NEW_BIN" "1" "build_reference_in_run" "$HALF_LIST" -q "$QUERY" --rl "$HALF_LIST" -t 1
-run_query_case "half_sketch_t8" "standard" "$NEW_BIN" "8" "load_prebuilt_sketch" "$SKETCH_PREFIX" -q "$QUERY" --sketch "$SKETCH_PREFIX" -t 8
-run_query_case "half_sketch_t8" "low_memory" "$NEW_BIN" "8" "load_prebuilt_sketch_low_memory" "$SKETCH_PREFIX" -q "$QUERY" --sketch "$SKETCH_PREFIX" --low-memory -t 8
+run_query_case "half_sketch_t8" "standard" "$NEW_BIN" "8" "load_prebuilt_sketch_all_shards" "$SKETCH_PREFIX" -q "$QUERY" --sketch "$SKETCH_PREFIX" -t 8
+run_query_case "half_sketch_t8" "batch_5" "$NEW_BIN" "8" "load_prebuilt_sketch_batch_5" "$SKETCH_PREFIX" -q "$QUERY" --sketch "$SKETCH_PREFIX" --batch-size 5 -t 8
+run_query_case "half_sketch_t8" "batch_1" "$NEW_BIN" "8" "load_prebuilt_sketch_batch_1" "$SKETCH_PREFIX" -q "$QUERY" --sketch "$SKETCH_PREFIX" --batch-size 1 -t 8
 
 validate_identical_outputs \
   "benchmark/half_nosketch_t1_old_release_rep1.out" \
@@ -148,8 +149,13 @@ validate_identical_outputs \
 
 validate_identical_outputs \
   "benchmark/half_sketch_t8_standard_rep1.out" \
-  "benchmark/half_sketch_t8_low_memory_rep1.out" \
-  "standard_vs_lowmem_half_sketch_rep1"
+  "benchmark/half_sketch_t8_batch_5_rep1.out" \
+  "standard_vs_batch5_half_sketch_rep1"
+
+validate_identical_outputs \
+  "benchmark/half_sketch_t8_standard_rep1.out" \
+  "benchmark/half_sketch_t8_batch_1_rep1.out" \
+  "standard_vs_batch1_half_sketch_rep1"
 
 for rep in $(seq 2 "$REPEATS"); do
   validate_identical_outputs \
@@ -165,9 +171,13 @@ for rep in $(seq 2 "$REPEATS"); do
     "benchmark/half_sketch_t8_standard_rep${rep}.out" \
     "standard_sketch_repeat_${rep}"
   validate_identical_outputs \
-    "benchmark/half_sketch_t8_low_memory_rep1.out" \
-    "benchmark/half_sketch_t8_low_memory_rep${rep}.out" \
-    "low_memory_repeat_${rep}"
+    "benchmark/half_sketch_t8_batch_5_rep1.out" \
+    "benchmark/half_sketch_t8_batch_5_rep${rep}.out" \
+    "batch_5_repeat_${rep}"
+  validate_identical_outputs \
+    "benchmark/half_sketch_t8_batch_1_rep1.out" \
+    "benchmark/half_sketch_t8_batch_1_rep${rep}.out" \
+    "batch_1_repeat_${rep}"
 done
 
 echo "Wrote raw runs to $RAW_CSV"
