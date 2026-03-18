@@ -126,12 +126,6 @@ template <typename T, typename KSEQ>
   //length of the sequence
   offset_t len = kseq->seq.l;
 
-  // Reserve an upper bound on emitted minimizers for this sequence to reduce
-  // vector growth during the hot loop.
-  const offset_t reserveCount = std::max<offset_t>(0, len - kmerSize - windowSize + 2);
-  if(reserveCount > 0)
-    minimizerIndex.reserve(minimizerIndex.size() + static_cast<size_t>(reserveCount));
-
   //Compute reverse complement of seq (reuse buffer to avoid per-call heap alloc)
   static thread_local std::vector<char> seqRevBuf;
   char *seqRev = nullptr;

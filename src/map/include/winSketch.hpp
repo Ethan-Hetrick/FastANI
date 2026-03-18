@@ -106,13 +106,32 @@ namespace skch
        * @brief   constructor
        *          also builds, indexes the minimizer table
        */
-      Sketch(const skch::Parameters &p) 
+      Sketch(const skch::Parameters &p)
         :
-          param(p) {
-            this->build();
-            this->index();
-            this->computeFreqHist();
-          }
+          param(p)
+      {
+        auto tBuildStart = skch::Time::now();
+        this->build();
+        auto tAfterBuild = skch::Time::now();
+        this->index();
+        auto tAfterIndex = skch::Time::now();
+        this->computeFreqHist();
+        auto tAfterFreqHist = skch::Time::now();
+
+        if (omp_get_thread_num() == 0)
+        {
+          std::chrono::duration<double> buildTime = tAfterBuild - tBuildStart;
+          std::chrono::duration<double> indexTime = tAfterIndex - tAfterBuild;
+          std::chrono::duration<double> freqHistTime = tAfterFreqHist - tAfterIndex;
+
+          std::cerr << "INFO [thread 0], skch::Sketch, Time spent collecting minimizers : "
+                    << buildTime.count() << " sec" << std::endl;
+          std::cerr << "INFO [thread 0], skch::Sketch, Time spent building lookup index : "
+                    << indexTime.count() << " sec" << std::endl;
+          std::cerr << "INFO [thread 0], skch::Sketch, Time spent computing frequency histogram : "
+                    << freqHistTime.count() << " sec" << std::endl;
+        }
+      }
 
       Sketch(const skch::Parameters &p, bool deferBuild)
         :
@@ -120,9 +139,27 @@ namespace skch
       {
         if(!deferBuild)
         {
+          auto tBuildStart = skch::Time::now();
           this->build();
+          auto tAfterBuild = skch::Time::now();
           this->index();
+          auto tAfterIndex = skch::Time::now();
           this->computeFreqHist();
+          auto tAfterFreqHist = skch::Time::now();
+
+          if (omp_get_thread_num() == 0)
+          {
+            std::chrono::duration<double> buildTime = tAfterBuild - tBuildStart;
+            std::chrono::duration<double> indexTime = tAfterIndex - tAfterBuild;
+            std::chrono::duration<double> freqHistTime = tAfterFreqHist - tAfterIndex;
+
+            std::cerr << "INFO [thread 0], skch::Sketch, Time spent collecting minimizers : "
+                      << buildTime.count() << " sec" << std::endl;
+            std::cerr << "INFO [thread 0], skch::Sketch, Time spent building lookup index : "
+                      << indexTime.count() << " sec" << std::endl;
+            std::cerr << "INFO [thread 0], skch::Sketch, Time spent computing frequency histogram : "
+                      << freqHistTime.count() << " sec" << std::endl;
+          }
         }
       }
 
@@ -140,10 +177,12 @@ namespace skch
         //sequence counter while parsing file
         seqno_t seqCounter = 0;
 
-        // PERF: reserve space to avoid repeated reallocations while collecting minimizers
-        // Heuristic: bacterial refs are a few Mbp; windowSize ~ 24; this gives O(2e5-5e5) minimizers.
-        // If this guess is off, reserve() is still safe (just a hint to the allocator).
-        const size_t estMinimizers = 500000;
+        // Reserve once for the full reference set to reduce geometric growth of
+        // the global minimizer vector without forcing the per-contig reallocations
+        // that previously regressed build time.
+        const int safeWindow = std::max(1, param.windowSize);
+        const size_t estMinimizers =
+          static_cast<size_t>(std::max<uint64_t>(500000, param.referenceSize / safeWindow));
         this->minimizerIndex.reserve(estMinimizers);
 
         if ( omp_get_thread_num() == 0)
@@ -202,12 +241,6 @@ namespace skch
        */
       void index()
       {
-        // PERF: reduce unordered_map rehashing during index build.
-        // Unique minimizers are often a large fraction of total minimizers in bacterial genomes.
-        // Reserving prevents repeated rehash+alloc cycles.
-        const size_t estUnique = std::max<size_t>(1024, this->minimizerIndex.size() / 2);
-        this->minimizerPosLookupIndex.reserve(estUnique);
-
         //Parse all the minimizers and push into the map
         for(auto &e : minimizerIndex)
         {
@@ -227,6 +260,16 @@ namespace skch
        */
       void computeFreqHist()
       {
+        if(this->percentageThreshold <= 0.0f)
+        {
+          this->minimizerFreqHistogram.clear();
+          this->freqThreshold = std::numeric_limits<int>::max();
+
+          if ( omp_get_thread_num() == 0)
+            std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, consider all minimizers during lookup." << std::endl;
+
+          return;
+        }
 
         //1. Compute histogram
 

@@ -8,6 +8,9 @@
 #define BASE_TYPES_MAP_HPP
 
 #include <tuple>
+#include <string>
+#include <vector>
+#include <chrono>
 
 namespace skch
 {
@@ -84,6 +87,22 @@ namespace skch
       int sketchSize;                     //sketch size
       MinimizerVec minimizerTableQuery;   //Vector of minimizers in the query 
     };
+
+  struct CachedQueryFragment
+  {
+    std::string name;
+    std::string sequence;
+    seqno_t seqCounter;
+    int sketchSize;
+    std::vector<MinimizerInfo> minimizerTableQuery;
+  };
+
+  struct CachedQueryData
+  {
+    std::vector<ContigInfo> metadata;
+    std::vector<CachedQueryFragment> fragments;
+    uint64_t totalQueryFragments = 0;
+  };
 
   //Final mapping result
   struct MappingResult

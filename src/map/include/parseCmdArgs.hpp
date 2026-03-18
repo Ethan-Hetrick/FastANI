@@ -102,6 +102,10 @@ namespace skch
     std::cerr << "Window size = " << parameters.windowSize << std::endl;
     std::cerr << "Fragment length = " << parameters.minReadLength << std::endl;
     std::cerr << "Threads = " << parameters.threads << std::endl;
+    if(parameters.batchSize > 0)
+      std::cerr << "Sketch batch size = " << parameters.batchSize << std::endl;
+    else
+      std::cerr << "Sketch batch size = all shards" << std::endl;
     std::cerr << "ANI output file = " << parameters.outFileName << std::endl;
     std::cerr << "Sanity Check  = " << parameters.sanityCheck << std::endl;
     std::cerr << ">>>>>>>>>>>>>>>>>>" << std::endl;
@@ -134,7 +138,7 @@ namespace skch
     parameters.writeRefSketchMode = false;
     parameters.sketchFile = "";
     parameters.loadSketchMode = false;
-    parameters.lowMemory = false;
+    parameters.batchSize = 0;
 
     std::string refName, refList;
     std::string qryName, qryList;
@@ -155,7 +159,7 @@ namespace skch
     auto write_ref_sketch_cmd =
       (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile))
       % "write reference sketches to file and exit; requires --ref/--refList and does not use query input";
-    auto matrix_cmd = clipp::option("--matrix").set(parameters.matrixOutput).doc("also write ANI values as a lower triangular matrix to <output>.matrix; this affects matrix output only and is incompatible with --low-memory [disabled by default]");
+    auto matrix_cmd = clipp::option("--matrix").set(parameters.matrixOutput).doc("also write ANI values as a lower triangular matrix to <output>.matrix; this affects matrix output only and is incompatible with --batch-size [disabled by default]");
     auto visualize_cmd = clipp::option("--visualize").set(parameters.visualize).doc("also write fragment mappings to <output>.visual for downstream visualization; valid for pairwise and multi-genome runs, but the bundled R plotting example is pairwise-oriented [disabled by default]");
     auto extended_metrics_cmd =
       clipp::option("--extended-metrics").set(parameters.extendedMetrics)
@@ -175,9 +179,9 @@ namespace skch
 
     // EXECUTION OPTIONS
     auto thread_cmd = (clipp::option("-t", "--threads") & clipp::value("value", parameters.threads)) % "thread count for parallel execution [default : 1]";
-    auto low_memory_cmd =
-      clipp::option("--low-memory").set(parameters.lowMemory)
-      .doc("load one sketch bin at a time during sketch-backed querying; requires --sketch and is incompatible with --matrix and --write-ref-sketch [disabled by default]");
+    auto batch_size_cmd =
+      (clipp::option("--batch-size") & clipp::value("value", parameters.batchSize))
+      % "load sketch shards in batches during sketch-backed querying; requires --sketch. Use 1 for the lowest memory footprint, intermediate values for a memory/runtime tradeoff, and omit it to load all shards at once";
     auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
     auto help_cmd = clipp::option("-h", "--help").set(help).doc("print this help page");
     auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
@@ -213,7 +217,7 @@ namespace skch
     auto execution_cli =
       (
        thread_cmd,
-       low_memory_cmd,
+       batch_size_cmd,
        sanitycheck_cmd,
        help_cmd,
        version_cmd
@@ -233,7 +237,7 @@ namespace skch
       .doc_column(5)
       .last_column(80);
 
-    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\n1 vs all comparison using a sketch in low-memory mode:\n$ fastANI -q query.fa --sketch reference_sketch --low-memory -o output.txt\n\nAll vs all comparison with query list, reference list, matrix output, and visualization mappings:\n$ fastANI --queryList queries.txt --refList references.txt --matrix --visualize -o output.txt";
+    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\n1 vs all comparison using a sketch with one shard loaded at a time:\n$ fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt\n\nAll vs all comparison with query list, reference list, matrix output, and visualization mappings:\n$ fastANI --queryList queries.txt --refList references.txt --matrix --visualize -o output.txt";
 
     auto printHelp = [&]() {
       auto man = clipp::man_page{}
@@ -274,24 +278,37 @@ namespace skch
     if(!parameters.sketchFile.empty())
       parameters.loadSketchMode = true;
 
-    if(parameters.lowMemory)
+    if(parameters.batchSize != 0)
     {
       if(!parameters.loadSketchMode)
       {
-        std::cerr << "ERROR, --low-memory is supported only with --sketch\n";
+        std::cerr << "ERROR, --batch-size is supported only with --sketch\n";
         exit(1);
       }
 
       if(parameters.writeRefSketchMode)
       {
-        std::cerr << "ERROR, --low-memory cannot be used while writing reference sketches\n";
+        std::cerr << "ERROR, --batch-size cannot be used while writing reference sketches\n";
         exit(1);
       }
 
       if(parameters.matrixOutput)
       {
-        std::cerr << "ERROR, --low-memory cannot be used with --matrix\n";
+        std::cerr << "ERROR, --batch-size cannot be used with --matrix\n";
         exit(1);
+      }
+
+      if(parameters.batchSize < 1)
+      {
+        std::cerr << "ERROR, --batch-size must be at least 1 when provided\n";
+        exit(1);
+      }
+
+      if(parameters.batchSize > parameters.threads)
+      {
+        std::cerr << "INFO, --batch-size exceeds the number of sketch shards; using "
+                  << parameters.threads << " instead\n";
+        parameters.batchSize = parameters.threads;
       }
     }
 

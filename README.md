@@ -15,49 +15,52 @@ Clone the repository and follow [`INSTALL.txt`](INSTALL.txt) to build the projec
 
 Prebuilt dependency-free binaries for Linux and macOS are also available from the [releases page](https://github.com/ParBliSS/FastANI/releases).
 
+After installation, the executable is available as `fastANI`.
+If you are running directly from the build tree without installing, use `build/fastANI`.
+
 ## Quick start
 
 Print the help page:
 
 ```sh
-./build/fastANI --help
+fastANI --help
 ```
 
 Compute ANI for a single query genome against a single reference genome:
 
 ```sh
-./build/fastANI -q QUERY_GENOME -r REFERENCE_GENOME -o output.txt
+fastANI -q QUERY_GENOME -r REFERENCE_GENOME -o output.txt
 ```
 
 Compute ANI for a single query genome against many references:
 
 ```sh
-./build/fastANI -q QUERY_GENOME --refList references.txt -o output.txt
+fastANI -q QUERY_GENOME --refList references.txt -o output.txt
 ```
 
 Compute ANI for many queries against many references:
 
 ```sh
-./build/fastANI --queryList queries.txt --refList references.txt -o output.txt
+fastANI --queryList queries.txt --refList references.txt -o output.txt
 ```
 
 Use sketch-backed querying to avoid rebuilding the reference database each time:
 
 ```sh
-./build/fastANI --refList references.txt --write-ref-sketch reference_sketch
-./build/fastANI -q QUERY_GENOME --sketch reference_sketch -o output.txt
+fastANI --refList references.txt --write-ref-sketch reference_sketch
+fastANI -q QUERY_GENOME --sketch reference_sketch -o output.txt
 ```
 
-Use low-memory sketch-backed querying when RAM is limited:
+Use batched sketch-backed querying when RAM is limited:
 
 ```sh
-./build/fastANI -q QUERY_GENOME --sketch reference_sketch --low-memory -o output.txt
+fastANI -q QUERY_GENOME --sketch reference_sketch --batch-size 1 -o output.txt
 ```
 
 Show the installed version:
 
 ```sh
-./build/fastANI --version
+fastANI --version
 ```
 
 ## Input files
@@ -83,7 +86,7 @@ Show the installed version:
 
 - `-o, --output`: write the main tabular ANI results to this file.
 - `--write-ref-sketch`: write a reference sketch database and exit. This requires `--ref` or `--refList` and does not use query input.
-- `--matrix`: also write ANI values to `<output>.matrix` as a lower-triangular PHYLIP-style matrix. This is incompatible with `--low-memory`.
+- `--matrix`: also write ANI values to `<output>.matrix` as a lower-triangular PHYLIP-style matrix. This is incompatible with `--batch-size`.
 - `--visualize`: also write fragment mappings to `<output>.visual`. This works for pairwise and multi-genome runs, though the bundled plotting example is oriented toward one pair at a time.
 - `--extended-metrics`: add extra fragment-level ANI summary fields to the main tabular output only.
 - `--header`: add a header row to the main tabular output only.
@@ -109,16 +112,46 @@ Guidance:
 ### Execution options
 
 - `-t, --threads`: number of threads to use.
-- `--low-memory`: load one sketch bin at a time during sketch-backed querying. This requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`.
+- `--batch-size`: load sketch shards in batches during sketch-backed querying. This requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. Use `1` for the lowest memory footprint, intermediate values such as `5` to trade more RAM for better runtime, or omit it to load all shards at once.
 - `-s, --sanityCheck`: run the built-in sanity check mode.
 - `-h, --help`: print the command-line help page.
 - `-v, --version`: print the program version.
+
+Batch-size memory heuristic:
+
+- As a rough rule of thumb, peak RAM is often close to `0.10 GiB + 2.8 x (sum of sketch shard sizes loaded together)`.
+- For balanced sketches, you can approximate this as `0.10 GiB + 2.8 x batch_size x average_shard_size`.
+- For a safer request on HPC or cloud systems, estimate from the largest shard instead of the average, then add another `20%` headroom for scheduler requests.
+
+Example command for estimating query-time memory from an existing sketch prefix:
+
+```sh
+# Sketch prefix and desired shard batch size.
+prefix=reference_sketch
+batch=5
+
+# Use the largest shard for a conservative estimate.
+largest=$(stat -c '%s' "${prefix}".* | sort -nr | head -1)
+
+# Convert bytes into a rough peak RAM estimate and a safer request.
+awk -v bytes="$largest" -v batch="$batch" '
+BEGIN {
+  peak = 0.10 + 2.8 * batch * bytes / 1073741824
+  req = 1.2 * peak
+
+  printf("estimated_peak_rss=%.2f GiB\n", peak)
+  printf("suggested_request=%.2f GiB\n", req)
+}'
+```
+
+This uses the largest sketch shard as a conservative sizing input and reports a safer scheduler request.
+Using the average shard size instead would be a more aggressive estimate and may underpredict memory on uneven datasets.
 
 ### Compatibility notes
 
 - `--sketch` is used instead of `--ref` or `--refList`.
 - `--write-ref-sketch` requires reference input and does not use query input.
-- `--low-memory` requires `--sketch` and cannot be combined with `--matrix` or `--write-ref-sketch`.
+- `--batch-size` requires `--sketch` and cannot be combined with `--matrix` or `--write-ref-sketch`.
 - `--header` and `--extended-metrics` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
 - `--visualize` works for pairwise and multi-genome runs, but the bundled `scripts/visualize.R` example is pairwise-oriented.
 - Sketches written with one `--window-size` are not interchangeable with runs using a different `--window-size`.
@@ -129,32 +162,35 @@ Guidance:
 ### 1 vs 1 with extended metrics
 
 ```sh
-./build/fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt
+fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt
 ```
 
 ### 1 vs all from a prebuilt sketch
 
 ```sh
-./build/fastANI -q query.fa --sketch reference_sketch -o output.txt
+fastANI -q query.fa --sketch reference_sketch -o output.txt
 ```
 
 ### 1 vs all from a prebuilt sketch with visualization output
 
 ```sh
-./build/fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt
+fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt
 ```
 
-### 1 vs all from a prebuilt sketch with lower memory usage
+### 1 vs all from a prebuilt sketch with controlled shard batching
 
 ```sh
-./build/fastANI -q query.fa --sketch reference_sketch --low-memory -o output.txt
+fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt
 ```
 
 Notes:
 
-- `--low-memory` is available only with `--sketch`.
-- `--low-memory` is incompatible with `--matrix` and `--write-ref-sketch`.
-- `--low-memory` trades runtime for lower peak memory usage by loading one sketch bin at a time.
+- `--batch-size` is available only with `--sketch`.
+- `--batch-size` is incompatible with `--matrix` and `--write-ref-sketch`.
+- `--batch-size 1` gives the lowest peak memory usage by loading one sketch shard at a time.
+- Larger values such as `--batch-size 5` reduce the batching overhead and are often a better choice when you have moderate memory available.
+- Omitting `--batch-size` loads all sketch shards at once and gives the best sketch-backed runtime when memory is not a bottleneck.
+- `--batch-size` should be at most the number of sketch shards available for the run; values above that behave like loading all shards.
 - `--window-size` sets the minimizer window size manually instead of using FastANI's internally recommended value.
 - Larger `--window-size` values generally reduce minimizer density and can speed up runs at the cost of sensitivity.
 - Non-default mapping parameters, especially `--window-size`, can change reported ANI values and which hits appear in the output.
@@ -164,7 +200,7 @@ Notes:
 ### All vs all with matrix output
 
 ```sh
-./build/fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
+fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
 ```
 
 ## Output
@@ -202,7 +238,7 @@ Two small test genomes are available under [`tests/data`](tests/data).
 Example:
 
 ```sh
-./build/fastANI \
+fastANI \
   -q tests/data/Shigella_flexneri_2a_01.fna \
   -r tests/data/Escherichia_coli_str_K12_MG1655.fna \
   -o fastani.out
@@ -223,21 +259,58 @@ FastANI can persist reference sketches and reuse them across runs.
 Write a sketch database:
 
 ```sh
-./build/fastANI --refList references.txt --write-ref-sketch reference_sketch
+fastANI --refList references.txt --write-ref-sketch reference_sketch
 ```
 
 Reuse the sketch database:
 
 ```sh
-./build/fastANI --queryList queries.txt --sketch reference_sketch -o output.txt
+fastANI --queryList queries.txt --sketch reference_sketch -o output.txt
 ```
 
 This is especially useful when the same reference database is queried repeatedly.
 
+Sketch-build memory heuristic:
+
+- As a rough rule of thumb for default-style sketch creation, peak RAM often grows approximately linearly with total reference sequence content.
+- A practical planning estimate is `peak_rss_gib ~= 0.5 + 7 x total_genome_gbp`.
+- For a safer HPC or cloud request, round up to about `requested_ram_gib ~= 1 + 9 x total_genome_gbp`.
+- This is only a heuristic: actual memory use depends on the dataset, repetitiveness, contig structure, and mapping parameters such as `--window-size`.
+
+Example command for estimating sketch-build memory from a FASTA `--refList`:
+
+```sh
+# Text file containing one reference FASTA path per line.
+ref_list=references.txt
+
+# Count non-header sequence characters across all references.
+bases=$(
+  while read -r f; do
+    gzip -cd "$f" 2>/dev/null || cat "$f"
+  done < "$ref_list" |
+  grep -v '^>' |
+  tr -d '[:space:]' |
+  wc -c
+)
+
+# Convert total bases into a conservative sketch-build request.
+awk -v b="$bases" '
+BEGIN {
+  gbp = b / 1e9
+  req = 1 + 9 * gbp
+
+  printf("total_bases=%d (%.3f Gbp)\n", b, gbp)
+  printf("suggested_request=%.2f GiB\n", req)
+}'
+```
+
+This estimates total genomic content by removing FASTA header lines, stripping whitespace, and counting sequence characters, then converts that total into a conservative memory request.
+This request formula is intentionally conservative; a more aggressive estimate would use the lower `0.5 + 7 x total_genome_gbp` rule of thumb instead.
+
 Compatibility notes:
 
 - When `--sketch` is used, reference sketches are loaded from disk instead of rebuilding them from `--ref` or `--refList`.
-- `--low-memory` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
+- `--batch-size` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
 - `--window-size` changes the sketching parameters, so sketch files written with one window size are not interchangeable with runs using a different window size.
 - Changing mapping parameters can change results, so sketch-backed runs should only be compared directly when they use compatible sketch and mapping settings.
 
@@ -246,7 +319,7 @@ Compatibility notes:
 FastANI can emit reciprocal mapping information for visualization in pairwise or multi-genome comparisons.
 
 ```sh
-./build/fastANI -q B_quintana.fna -r B_henselae.fna --visualize -o fastani.out
+fastANI -q B_quintana.fna -r B_henselae.fna --visualize -o fastani.out
 Rscript scripts/visualize.R B_quintana.fna B_henselae.fna fastani.out.visual
 ```
 
