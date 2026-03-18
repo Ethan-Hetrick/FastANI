@@ -596,13 +596,12 @@ namespace cgi
    * @brief                             update thread local reference genome ids to global ids
    * @param[in/out] CGI_ResultsVector
    */
-  void correctRefGenomeIds (std::vector<cgi::CGI_Results> &CGI_ResultsVector)
+  void correctRefGenomeIds (std::vector<cgi::CGI_Results> &CGI_ResultsVector,
+      int splitIndex,
+      int splitCount)
   {
-    int tid = omp_get_thread_num();
-    int thread_count = omp_get_num_threads(); 
-    
     for (auto &e : CGI_ResultsVector)
-      e.refGenomeId = e.refGenomeId * thread_count +  tid;
+      e.refGenomeId = e.refGenomeId * splitCount + splitIndex;
   }
 }
 

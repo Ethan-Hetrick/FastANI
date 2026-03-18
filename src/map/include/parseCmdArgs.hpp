@@ -99,6 +99,7 @@ namespace skch
     std::cerr << "Reference = " << parameters.refSequences << std::endl;
     std::cerr << "Query = " << parameters.querySequences << std::endl;
     std::cerr << "Kmer size = " << parameters.kmerSize << std::endl;
+    std::cerr << "Window size = " << parameters.windowSize << std::endl;
     std::cerr << "Fragment length = " << parameters.minReadLength << std::endl;
     std::cerr << "Threads = " << parameters.threads << std::endl;
     std::cerr << "ANI output file = " << parameters.outFileName << std::endl;
@@ -116,6 +117,7 @@ namespace skch
   {
     //defaults
     parameters.kmerSize = 16;
+    parameters.windowSizeManual = 0;
     parameters.minReadLength = 3000;
     parameters.alphabetSize = 4;
     parameters.minFraction = 0.2;
@@ -132,6 +134,7 @@ namespace skch
     parameters.writeRefSketchMode = false;
     parameters.sketchFile = "";
     parameters.loadSketchMode = false;
+    parameters.lowMemory = false;
 
     std::string refName, refList;
     std::string qryName, qryList;
@@ -145,30 +148,36 @@ namespace skch
     auto qryList_cmd = (clipp::option("--ql", "--queryList") & clipp::value("value", qryList)) % "a file containing list of query genome files, one genome per line";
     auto sketch_cmd =
       (clipp::option("--sketch") & clipp::value("value", parameters.sketchFile))
-      % "load reference sketches from file prefix instead of rebuilding";
+      % "load reference sketches from file prefix instead of rebuilding; use this instead of --ref/--refList";
 
     // OUTPUT OPTIONS
     auto output_cmd = (clipp::option("-o", "--output") & clipp::value("value", parameters.outFileName)) % "output file name";
     auto write_ref_sketch_cmd =
       (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile))
-      % "write reference sketches to file and exit";
-    auto matrix_cmd = clipp::option("--matrix").set(parameters.matrixOutput).doc("also output ANI values as lower triangular matrix (format inspired from phylip). If enabled, you should expect an output file with .matrix extension [disabled by default]");
-    auto visualize_cmd = clipp::option("--visualize").set(parameters.visualize).doc("output mappings for visualization, can be enabled for single genome to single genome comparison only [disabled by default]");
+      % "write reference sketches to file and exit; requires --ref/--refList and does not use query input";
+    auto matrix_cmd = clipp::option("--matrix").set(parameters.matrixOutput).doc("also write ANI values as a lower triangular matrix to <output>.matrix; this affects matrix output only and is incompatible with --low-memory [disabled by default]");
+    auto visualize_cmd = clipp::option("--visualize").set(parameters.visualize).doc("also write fragment mappings to <output>.visual for downstream visualization; valid for pairwise and multi-genome runs, but the bundled R plotting example is pairwise-oriented [disabled by default]");
     auto extended_metrics_cmd =
       clipp::option("--extended-metrics").set(parameters.extendedMetrics)
-      .doc("report extended fragment-level ANI metrics");
+      .doc("report extended fragment-level ANI metrics in the tabular output only");
     auto header_cmd =
       clipp::option("--header").set(parameters.header)
-      .doc("write a header row in tab-delimited output");
+      .doc("write a header row in the tabular output only; does not affect --matrix or --visualize outputs");
 
     // MAPPING PARAMETERS
     auto kmer_cmd = (clipp::option("-k", "--kmer") & clipp::value("value", parameters.kmerSize)) % "kmer size <= 16 [default : 16]";
+    auto window_size_cmd =
+      (clipp::option("--window-size") & clipp::value("value", parameters.windowSizeManual))
+      % "set minimizer window size manually instead of using the internally recommended value";
     auto fraglen_cmd = (clipp::option("--fragLen") & clipp::value("value", parameters.minReadLength)) % "fragment length [default : 3,000]";
     auto minfraction_cmd = (clipp::option("--minFraction") & clipp::value("value", parameters.minFraction)) % "minimum fraction of genome that must be shared for trusting ANI. If reference and query genome size differ, smaller one among the two is considered. [default : 0.2]";
     auto maxratio_cmd = (clipp::option("--maxRatioDiff") & clipp::value("value", parameters.maxRatioDiff)) % "maximum difference between (Total Ref. Length/Total Occ. Hashes) and (Total Ref. Length/Total No. Hashes). [default : 10.0]";
 
     // EXECUTION OPTIONS
     auto thread_cmd = (clipp::option("-t", "--threads") & clipp::value("value", parameters.threads)) % "thread count for parallel execution [default : 1]";
+    auto low_memory_cmd =
+      clipp::option("--low-memory").set(parameters.lowMemory)
+      .doc("load one sketch bin at a time during sketch-backed querying; requires --sketch and is incompatible with --matrix and --write-ref-sketch [disabled by default]");
     auto sanitycheck_cmd = clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
     auto help_cmd = clipp::option("-h", "--help").set(help).doc("print this help page");
     auto version_cmd = clipp::option("-v", "--version").set(versioncheck).doc("show version");
@@ -195,6 +204,7 @@ namespace skch
     auto mapping_cli =
       (
        kmer_cmd,
+       window_size_cmd,
        fraglen_cmd,
        minfraction_cmd,
        maxratio_cmd
@@ -203,6 +213,7 @@ namespace skch
     auto execution_cli =
       (
        thread_cmd,
+       low_memory_cmd,
        sanitycheck_cmd,
        help_cmd,
        version_cmd
@@ -222,7 +233,7 @@ namespace skch
       .doc_column(5)
       .last_column(80);
 
-    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\nBasic all vs all comparison with query list, reference list, and matrix output:\n$ fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt";
+    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\n1 vs all comparison using a sketch in low-memory mode:\n$ fastANI -q query.fa --sketch reference_sketch --low-memory -o output.txt\n\nAll vs all comparison with query list, reference list, matrix output, and visualization mappings:\n$ fastANI --queryList queries.txt --refList references.txt --matrix --visualize -o output.txt";
 
     auto printHelp = [&]() {
       auto man = clipp::man_page{}
@@ -263,6 +274,27 @@ namespace skch
     if(!parameters.sketchFile.empty())
       parameters.loadSketchMode = true;
 
+    if(parameters.lowMemory)
+    {
+      if(!parameters.loadSketchMode)
+      {
+        std::cerr << "ERROR, --low-memory is supported only with --sketch\n";
+        exit(1);
+      }
+
+      if(parameters.writeRefSketchMode)
+      {
+        std::cerr << "ERROR, --low-memory cannot be used while writing reference sketches\n";
+        exit(1);
+      }
+
+      if(parameters.matrixOutput)
+      {
+        std::cerr << "ERROR, --low-memory cannot be used with --matrix\n";
+        exit(1);
+      }
+    }
+
     if (!parameters.loadSketchMode && refName == "" && refList == "")
     {
       std::cerr << "Provide reference file (s)\n";
@@ -293,11 +325,20 @@ namespace skch
 
     assert(parameters.minFraction >= 0.0 && parameters.minFraction <= 1.0);
 
+    if(parameters.windowSizeManual < 0)
+    {
+      std::cerr << "ERROR, --window-size must be greater than 0 when provided\n";
+      exit(1);
+    }
+
     //Compute optimal window size
     parameters.windowSize = skch::Stat::recommendedWindowSize(parameters.p_value,
         parameters.kmerSize, parameters.alphabetSize,
         parameters.percentageIdentity,
         parameters.minReadLength, parameters.referenceSize);
+
+    if(parameters.windowSizeManual > 0)
+      parameters.windowSize = parameters.windowSizeManual;
 
     if(parameters.writeRefSketchMode)
     {

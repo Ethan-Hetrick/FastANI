@@ -23,6 +23,7 @@ namespace skch
   {
     int kmerSize;                                     //kmer size for sketching
     int windowSize;                                   //window size used for sketching 
+    int windowSizeManual = 0;                         //CLI-specified window size; 0 means auto
     int minReadLength;                                //minimum read length which code maps
     float minFraction;                                //minimum genome fraction for trusting ANI value
     int threads;                                      //thread count
@@ -42,6 +43,7 @@ namespace skch
     bool matrixOutput;                                //report fastani results as lower triangular matrix
     bool extendedMetrics = false;                     //report extra fragment-level ANI metrics
     bool header = false;                              //write a header row in tabular output
+    bool lowMemory = false;                           //load sketch bins one at a time during sketch-backed querying
     float maxRatioDiff;                               //max Ratio for sanity check
     bool sanityCheck;                                 // Sanity check for extreme Cases
   };
