@@ -260,6 +260,16 @@ namespace skch
        */
       void computeFreqHist()
       {
+        if(this->percentageThreshold <= 0.0f)
+        {
+          this->minimizerFreqHistogram.clear();
+          this->freqThreshold = std::numeric_limits<int>::max();
+
+          if ( omp_get_thread_num() == 0)
+            std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, consider all minimizers during lookup." << std::endl;
+
+          return;
+        }
 
         //1. Compute histogram
 
