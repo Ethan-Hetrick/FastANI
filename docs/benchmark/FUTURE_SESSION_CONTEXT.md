@@ -6,9 +6,9 @@ This document is a reloadable handoff for future chatbot or coding-agent session
 
 ## Repository Context
 
-- Repository root: `/scicomp/home-pure/rqu4/PROJECTS/PERSONAL/FastANI`
-- Clean upstream reference copy is available at:
-  - `/scicomp/home-pure/rqu4/PROJECTS/PERSONAL/FastANI/fastANI_clean/FastANI`
+- Repository root: current FastANI checkout
+- Clean upstream reference copy is available under:
+  - `fastANI_clean/FastANI`
 - Current line of work has focused on:
   - sketch-backed execution
   - memory/runtime tradeoffs
@@ -343,11 +343,11 @@ There is not a large formal integration-test suite for all new behavior, so prac
 For sketch-query changes, verify at minimum:
 
 ```sh
-./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna --sketch benchmark/publication_half_t8_sketch -t 8 -o /tmp/std.out
-./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna --sketch benchmark/publication_half_t8_sketch --batch-size 1 -t 8 -o /tmp/b1.out
-./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna --sketch benchmark/publication_half_t8_sketch --batch-size 5 -t 8 -o /tmp/b5.out
-diff -q /tmp/std.out /tmp/b1.out
-diff -q /tmp/std.out /tmp/b5.out
+./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna --sketch benchmark/publication_half_t8_sketch -t 8 -o benchmark/std.out
+./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna --sketch benchmark/publication_half_t8_sketch --batch-size 1 -t 8 -o benchmark/b1.out
+./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna --sketch benchmark/publication_half_t8_sketch --batch-size 5 -t 8 -o benchmark/b5.out
+diff -q benchmark/std.out benchmark/b1.out
+diff -q benchmark/std.out benchmark/b5.out
 ```
 
 ## Practical Notes For Future Agents

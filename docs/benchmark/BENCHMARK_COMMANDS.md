@@ -102,20 +102,20 @@ Validate that batched sketch execution matches the all-shards sketch output:
 ```sh
 ./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna \
   --sketch benchmark/publication_half_t8_sketch \
-  -t 8 -o /tmp/std.out
+  -t 8 -o benchmark/std.out
 
 ./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna \
   --sketch benchmark/publication_half_t8_sketch \
   --batch-size 5 \
-  -t 8 -o /tmp/b5.out
+  -t 8 -o benchmark/b5.out
 
 ./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna \
   --sketch benchmark/publication_half_t8_sketch \
   --batch-size 1 \
-  -t 8 -o /tmp/b1.out
+  -t 8 -o benchmark/b1.out
 
-diff -q /tmp/std.out /tmp/b5.out
-diff -q /tmp/std.out /tmp/b1.out
+diff -q benchmark/std.out benchmark/b5.out
+diff -q benchmark/std.out benchmark/b1.out
 ```
 
 ## Key Output Files
