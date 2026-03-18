@@ -54,6 +54,12 @@ Use low-memory sketch-backed querying when RAM is limited:
 ./build/fastANI -q QUERY_GENOME --sketch reference_sketch --low-memory -o output.txt
 ```
 
+Show the installed version:
+
+```sh
+./build/fastANI --version
+```
+
 ## Input files
 
 - `-q, --query` expects a single query genome in FASTA or FASTQ format, optionally gzip-compressed.
@@ -62,6 +68,61 @@ Use low-memory sketch-backed querying when RAM is limited:
 - `--refList` expects a text file with one reference genome path per line.
 - `--sketch` expects the prefix of a previously written reference sketch database and is used instead of `--ref` or `--refList`.
 - `--write-ref-sketch` writes a reference sketch database and exits; it requires `--ref` or `--refList` and does not use query input.
+
+## Parameter reference
+
+### Input options
+
+- `-q, --query`: single query genome in FASTA/FASTQ format, optionally gzip-compressed.
+- `-r, --ref`: single reference genome in FASTA/FASTQ format, optionally gzip-compressed.
+- `--ql, --queryList`: text file listing query genome paths, one per line.
+- `--rl, --refList`: text file listing reference genome paths, one per line.
+- `--sketch`: load a previously written reference sketch prefix instead of rebuilding references from `--ref` or `--refList`.
+
+### Output options
+
+- `-o, --output`: write the main tabular ANI results to this file.
+- `--write-ref-sketch`: write a reference sketch database and exit. This requires `--ref` or `--refList` and does not use query input.
+- `--matrix`: also write ANI values to `<output>.matrix` as a lower-triangular PHYLIP-style matrix. This is incompatible with `--low-memory`.
+- `--visualize`: also write fragment mappings to `<output>.visual`. This works for pairwise and multi-genome runs, though the bundled plotting example is oriented toward one pair at a time.
+- `--extended-metrics`: add extra fragment-level ANI summary fields to the main tabular output only.
+- `--header`: add a header row to the main tabular output only.
+
+### Mapping parameters
+
+Warning: these parameters can change reported ANI values, hit counts, sensitivity, and runtime. Non-default settings should be treated as a different analysis configuration, not as a harmless performance tweak.
+
+- `-k, --kmer`: k-mer size used by the mapper. The current implementation expects values up to `16`; larger values can change sensitivity and should be used cautiously.
+- `--window-size`: manually set the minimizer window size instead of using FastANI's internally recommended value.
+- `--fragLen`: fragment length used for query fragmentation.
+- `--minFraction`: minimum shared fraction required before trusting ANI for a genome pair.
+- `--maxRatioDiff`: upper bound on the allowed difference between reference hash-density statistics used during mapping.
+
+Guidance:
+
+- Larger `--window-size` values reduce minimizer density, which usually lowers runtime and memory use but can change ANI estimates and which hits are reported.
+- In local benchmarking on one Shigella-against-sketch workload, `--window-size 32` reduced query runtime noticeably relative to the default sketch settings, but also changed reported results enough that it should be treated as an accuracy/sensitivity tradeoff.
+- More aggressive values such as `--window-size 36` or `48` may speed runs further, but they produced larger result drift in the same benchmark and are harder to justify without workload-specific validation.
+- Changing `--fragLen` can also affect sensitivity and reported matches; it is not only a performance knob.
+- If you care about comparability to published FastANI defaults or to earlier runs, prefer the recommended/default mapping parameters.
+
+### Execution options
+
+- `-t, --threads`: number of threads to use.
+- `--low-memory`: load one sketch bin at a time during sketch-backed querying. This requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`.
+- `-s, --sanityCheck`: run the built-in sanity check mode.
+- `-h, --help`: print the command-line help page.
+- `-v, --version`: print the program version.
+
+### Compatibility notes
+
+- `--sketch` is used instead of `--ref` or `--refList`.
+- `--write-ref-sketch` requires reference input and does not use query input.
+- `--low-memory` requires `--sketch` and cannot be combined with `--matrix` or `--write-ref-sketch`.
+- `--header` and `--extended-metrics` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
+- `--visualize` works for pairwise and multi-genome runs, but the bundled `scripts/visualize.R` example is pairwise-oriented.
+- Sketches written with one `--window-size` are not interchangeable with runs using a different `--window-size`.
+- More generally, sketches should be reused only when the mapping configuration is compatible with the configuration used when the sketch was written.
 
 ## Common workflows
 
@@ -96,6 +157,7 @@ Notes:
 - `--low-memory` trades runtime for lower peak memory usage by loading one sketch bin at a time.
 - `--window-size` sets the minimizer window size manually instead of using FastANI's internally recommended value.
 - Larger `--window-size` values generally reduce minimizer density and can speed up runs at the cost of sensitivity.
+- Non-default mapping parameters, especially `--window-size`, can change reported ANI values and which hits appear in the output.
 - `--visualize` can be used in pairwise and multi-genome runs; it writes fragment mappings to `<output>.visual`.
 - The bundled `scripts/visualize.R` example is intended for pairwise plotting, even though `.visual` output can contain multiple genome pairs.
 
@@ -177,6 +239,7 @@ Compatibility notes:
 - When `--sketch` is used, reference sketches are loaded from disk instead of rebuilding them from `--ref` or `--refList`.
 - `--low-memory` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
 - `--window-size` changes the sketching parameters, so sketch files written with one window size are not interchangeable with runs using a different window size.
+- Changing mapping parameters can change results, so sketch-backed runs should only be compared directly when they use compatible sketch and mapping settings.
 
 ## Visualization of conserved regions
 
