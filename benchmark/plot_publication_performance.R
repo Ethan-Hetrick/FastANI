@@ -202,7 +202,7 @@ draw_stacked_runtime <- function(variants, title, subtitle) {
   text(mids, totals, labels = fmt_num(totals, 2), pos = 3, cex = 0.92, col = text_primary)
   legend("topright", legend = rownames(runtime_mat), fill = phase_colors, bty = "n", cex = 0.84)
   mtext(subtitle, side = 3, line = 0.4, cex = 0.88, col = text_muted)
-  mtext(sprintf("Output rows: %d no-sketch, %d all-shards, %d batch=5, %d batch=1", old_s$output_rows, std_s$output_rows, batch5_s$output_rows, batch1_s$output_rows),
+  mtext(sprintf("Workload: 1 query, 5,032 references, %d reported comparisons", std_s$output_rows),
         side = 1, line = 4.4, cex = 0.80, col = text_muted)
 }
 
@@ -402,8 +402,9 @@ draw_all_v_all_panel <- function() {
     axisnames = FALSE
   )
   text(mids, totals, labels = sprintf("%.1f", totals), pos = 3, cex = 0.82, col = text_primary)
-  mtext(sprintf("Warm-cache all-v-all; rows %.2fM old vs %.2fM new", all_v_all_df$output_rows[1] / 1e6, all_v_all_df$output_rows[3] / 1e6),
-        side = 3, line = 0.4, cex = 0.80, col = text_muted)
+  mtext(sprintf("Warm-cache all-v-all"), side = 3, line = 0.4, cex = 0.80, col = text_muted)
+  mtext(sprintf("Workload: 10,065 queries, 10,065 references, %.2fM reported comparisons", all_v_all_df$output_rows[3] / 1e6),
+        side = 1, line = 5.1, cex = 0.78, col = text_muted)
 }
 
 draw_notes_panel <- function() {
@@ -439,19 +440,20 @@ draw_notes_panel <- function() {
 
   lines_to_show <- c(
     sprintf("15 runs total: 5 variants x %d replicates", unique(summary_df$n)[1]),
-    "Workload: 1 query vs 5,032 references",
-    "Release builds; sketch test uses 8 shards",
-    "Counts are reported ANI output rows"
+    "Release builds; sketch benchmark uses 8 shards",
+    "Repeated runs were stable within each execution mode",
+    "1-v-many outputs matched exactly across old/new no-sketch and all sketch batch modes",
+    "Full all-v-all old vs new row counts matched after the sketch metadata fix"
   )
 
   for (i in seq_along(lines_to_show)) {
-    text(0.08, 0.34 - (i - 1) * 0.070, paste0("\u2022 ", lines_to_show[i]),
-         adj = c(0, 0.5), cex = 0.82, col = text_primary)
+    text(0.08, 0.38 - (i - 1) * 0.064, paste0("\u2022 ", lines_to_show[i]),
+         adj = c(0, 0.5), cex = 0.80, col = text_primary)
   }
 
   status_col <- if (validation_all_match) "#2C8E5A" else "#C84C4C"
-  status_label <- if (validation_all_match) "Validation: all checks matched" else "Validation: check failures present"
-  text(0.08, 0.10, status_label, adj = c(0, 0.5), cex = 0.88, font = 2, col = status_col)
+  status_label <- if (validation_all_match) "Validation summary: all recorded checks passed" else "Validation summary: check failures present"
+  text(0.08, 0.06, status_label, adj = c(0, 0.5), cex = 0.85, font = 2, col = status_col)
 }
 
 write_summary_tables <- function() {
@@ -516,19 +518,19 @@ render_dashboard <- function(file_name) {
 
   draw_card(
     "No-Sketch Runtime",
-    sprintf("%.1f%% faster", no_sketch_speedup_pct),
+    sprintf("%.2fx faster", old_s$wall_mean / new_s$wall_mean),
     sprintf("%.2fs vs %.2fs", new_s$wall_mean, old_s$wall_mean),
     "#009E73"
   )
   draw_card(
     "Query Mapping Gain",
-    sprintf("%.1f%% faster", query_speedup_pct),
+    sprintf("%.2fx faster", old_s$query_mean / new_s$query_mean),
     sprintf("%.2fs vs %.2fs", new_s$query_mean, old_s$query_mean),
     "#0072B2"
   )
   draw_card(
     "Reference Build",
-    sprintf("%.1f%% faster", ref_build_speedup_pct),
+    sprintf("%.2fx faster", old_s$db_mean / new_s$db_mean),
     sprintf("%.2fs vs %.2fs", new_s$db_mean, old_s$db_mean),
     "#7F7F7F"
   )
@@ -540,13 +542,13 @@ render_dashboard <- function(file_name) {
   )
   draw_card(
     "Batch=5 Runtime",
-    sprintf("%.1f%% faster", batch5_runtime_speedup_pct),
+    sprintf("%.2fx faster", old_s$wall_mean / batch5_s$wall_mean),
     sprintf("%.2fs vs %.2fs", batch5_s$wall_mean, old_s$wall_mean),
     variant_colors[["batch_5"]]
   )
   draw_card(
     "Batch=1 Peak RSS",
-    sprintf("%.1f%% lower", batch1_rss_reduction_pct),
+    sprintf("%.2fx lower", old_s$rss_mean_gb / batch1_s$rss_mean_gb),
     sprintf("%.2f GiB vs %.2f GiB", batch1_s$rss_mean_gb, old_s$rss_mean_gb),
     variant_colors[["batch_1"]]
   )
