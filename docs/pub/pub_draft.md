@@ -7,11 +7,11 @@ tags:
   - sketching
   - high-performance computing
 authors:
-  - name: "TODO: Author Name"
+  - name: "Ethan Hetrick"
     affiliation: "1"
     corresponding: true
 affiliations:
-  - name: "TODO: Affiliation, Country"
+  - name: "Georgia Institute of Technology, United States"
     index: 1
 date: "18 March 2026"
 bibliography: paper.bib
