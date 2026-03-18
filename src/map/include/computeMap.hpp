@@ -28,6 +28,83 @@
 
 namespace skch
 {
+  inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
+                                              const std::string &queryFileName)
+  {
+    CachedQueryData cached;
+
+    gzFile fp = gzopen(queryFileName.c_str(), "r");
+    gzbuffer(fp, 1 << 20);
+    kseq_t *seq = kseq_init(fp);
+
+    seqno_t seqCounter = 0;
+    offset_t len;
+
+    while ((len = kseq_read(seq)) >= 0)
+    {
+      int fragmentCount = 0;
+
+      if(len < param.windowSize || len < param.kmerSize || len < param.minReadLength)
+      {
+        if(param.visualize)
+          cached.metadata.push_back(ContigInfo{seq->name.s, static_cast<offset_t>(seq->seq.l)});
+      }
+      else
+      {
+        fragmentCount = len / param.minReadLength;
+
+        for(int i = 0; i < fragmentCount; i++)
+        {
+          const offset_t fragmentLen =
+            (i != fragmentCount - 1)
+              ? param.minReadLength
+              : static_cast<offset_t>(param.minReadLength + (len % param.minReadLength));
+
+          if(param.visualize)
+            cached.metadata.push_back(ContigInfo{seq->name.s, fragmentLen});
+
+          CachedQueryFragment frag;
+          frag.name = seq->name.s;
+          frag.sequence.assign(seq->seq.s + i * param.minReadLength, param.minReadLength);
+          frag.seqCounter = seqCounter + i;
+
+          kseq_t seqView = *seq;
+          seqView.name.s = const_cast<char*>(frag.name.c_str());
+          seqView.name.l = static_cast<int>(frag.name.size());
+          seqView.seq.s = const_cast<char*>(frag.sequence.data());
+          seqView.seq.l = static_cast<int>(frag.sequence.size());
+
+          CommonFunc::addMinimizers(
+              frag.minimizerTableQuery,
+              &seqView,
+              param.kmerSize,
+              param.windowSize,
+              param.alphabetSize);
+
+          std::sort(frag.minimizerTableQuery.begin(),
+                    frag.minimizerTableQuery.end(),
+                    MinimizerInfo::lessByHash);
+
+          auto uniqEndIter = std::unique(frag.minimizerTableQuery.begin(),
+                                         frag.minimizerTableQuery.end(),
+                                         MinimizerInfo::equalityByHash);
+          frag.minimizerTableQuery.erase(uniqEndIter, frag.minimizerTableQuery.end());
+          frag.sketchSize = static_cast<int>(frag.minimizerTableQuery.size());
+
+          cached.fragments.push_back(std::move(frag));
+        }
+      }
+
+      seqCounter += fragmentCount;
+      cached.totalQueryFragments += fragmentCount;
+    }
+
+    kseq_destroy(seq);
+    gzclose(fp);
+
+    return cached;
+  }
+
   /**
    * @class     skch::Map
    * @brief     L1 and L2 mapping stages
@@ -99,6 +176,17 @@ namespace skch
         processMappingResults(f)
     {
       this->mapQuery(totalQueryFragments, param.querySequences[queryno]);
+    }
+
+      Map(const skch::Parameters &p, const skch::Sketch &refsketch,
+          const CachedQueryData &cachedQuery,
+          PostProcessResultsFn_t f = nullptr) :
+        param(p),
+        refSketch(refsketch),
+        processMappingResults(f)
+    {
+      this->metadata = cachedQuery.metadata;
+      this->mapCachedQuery(cachedQuery);
     }
 
     private:
@@ -206,6 +294,36 @@ namespace skch
         }
       }
 
+      void mapCachedQuery(const CachedQueryData &cachedQuery)
+      {
+        std::ofstream outstrm(param.outFileName);
+        std::vector<L1_candidateLocus_t> l1Mappings;
+        l1Mappings.reserve(64);
+        MappingResultsVector_t l2Mappings;
+        l2Mappings.reserve(8);
+
+        for(const auto &frag : cachedQuery.fragments)
+        {
+          kseq_t seqView{};
+          seqView.name.s = const_cast<char*>(frag.name.c_str());
+          seqView.name.l = static_cast<int>(frag.name.size());
+          seqView.name.m = static_cast<int>(frag.name.size());
+          seqView.seq.s = const_cast<char*>(frag.sequence.data());
+          seqView.seq.l = static_cast<int>(frag.sequence.size());
+          seqView.seq.m = static_cast<int>(frag.sequence.size());
+
+          struct PreparedQueryMetaData
+          {
+            kseq_t *kseq;
+            seqno_t seqCounter;
+            int sketchSize;
+            const MinVec_Type &minimizerTableQuery;
+          } Q{&seqView, frag.seqCounter, frag.sketchSize, frag.minimizerTableQuery};
+
+          mapSinglePreparedQuerySeq(Q, l1Mappings, l2Mappings, outstrm);
+        }
+      }
+
       /**
        * @brief                   map the parsed query sequence (L1 and L2 mapping)
        * @param[in]   Q           metadata about query sequence
@@ -249,6 +367,18 @@ namespace skch
               << "\n";
           }
 #endif
+        }
+
+      template<typename Q_Info>
+        inline void mapSinglePreparedQuerySeq(Q_Info &Q,
+                                              std::vector<L1_candidateLocus_t> &l1Mappings,
+                                              MappingResultsVector_t &l2Mappings,
+                                              std::ofstream &outstrm)
+        {
+          l2Mappings.clear();
+          doL1MappingPrepared(Q, l1Mappings);
+          doL2Mapping(Q, l1Mappings, l2Mappings);
+          reportL2Mappings(l2Mappings, outstrm);
         }
 
       /**
@@ -318,6 +448,36 @@ namespace skch
 
           int minimumHits = Stat::estimateMinimumHitsRelaxed(Q.sketchSize, param.kmerSize, param.percentageIdentity);
 
+          this->computeL1CandidateRegions(Q, seedHitsL1, minimumHits, l1Mappings);
+        }
+
+      template <typename Q_Info, typename Vec>
+        void doL1MappingPrepared(Q_Info &Q, Vec &l1Mappings)
+        {
+          std::vector<MinimizerMetaData> seedHitsL1;
+
+          l1Mappings.clear();
+
+          if(Q.sketchSize == 0)
+            return;
+
+          const size_t uniqCount = static_cast<size_t>(Q.sketchSize);
+          if(seedHitsL1.capacity() < uniqCount * 8)
+            seedHitsL1.reserve(uniqCount * 8);
+
+          for(auto it = Q.minimizerTableQuery.begin(); it != Q.minimizerTableQuery.end(); ++it)
+          {
+            auto seedFind = refSketch.minimizerPosLookupIndex.find(it->hash);
+
+            if(seedFind != refSketch.minimizerPosLookupIndex.end())
+            {
+              const auto& hitPositionList = seedFind->second;
+              if(hitPositionList.size() < refSketch.getFreqThreshold())
+                seedHitsL1.insert(seedHitsL1.end(), hitPositionList.begin(), hitPositionList.end());
+            }
+          }
+
+          int minimumHits = Stat::estimateMinimumHitsRelaxed(Q.sketchSize, param.kmerSize, param.percentageIdentity);
           this->computeL1CandidateRegions(Q, seedHitsL1, minimumHits, l1Mappings);
         }
 

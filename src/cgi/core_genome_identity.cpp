@@ -46,6 +46,7 @@ int core_genome_identity(int argc, char **argv)
 
   //Final output vectors of ANI computation (one per thread; merged after parallel region)
   std::vector< std::vector<cgi::CGI_Results> > finalResults_by_thread(parameters.threads);
+  std::vector<std::unique_ptr<skch::CachedQueryData>> cachedQueries(parameters.querySequences.size());
 
   std::vector<bool> sanityCheck(parameters.threads, true);
   std::vector<float> ratioDiffs(parameters.threads, true);
@@ -141,7 +142,26 @@ int core_genome_identity(int argc, char **argv)
         if (omp_get_thread_num() == 0)
           std::cerr << "INFO [thread 0], skch::main, Start Map " << queryno + 1 << std::endl;
 
-        skch::Map mapper = skch::Map(parameters_split[i], referSketch, totalQueryFragments, queryno, fn);
+        std::unique_ptr<skch::Map> mapperPtr;
+
+        if(parameters.lowMemory && parameters.loadSketchMode)
+        {
+          if(!cachedQueries[queryno])
+          {
+            cachedQueries[queryno] = std::make_unique<skch::CachedQueryData>(
+                skch::buildCachedQueryData(parameters_split[i],
+                                           parameters_split[i].querySequences[queryno]));
+          }
+
+          totalQueryFragments = cachedQueries[queryno]->totalQueryFragments;
+          mapperPtr = std::make_unique<skch::Map>(parameters_split[i], referSketch, *cachedQueries[queryno], fn);
+        }
+        else
+        {
+          mapperPtr = std::make_unique<skch::Map>(parameters_split[i], referSketch, totalQueryFragments, queryno, fn);
+        }
+
+        skch::Map &mapper = *mapperPtr;
 
         std::chrono::duration<double> timeMapQuery = skch::Time::now() - t0;
 
