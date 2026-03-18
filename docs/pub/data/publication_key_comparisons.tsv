@@ -1,0 +1,5 @@
+comparison	value
+current_vs_old_nosketch_speedup_pct	9.90198975571317
+current_vs_old_query_speedup_pct	36.9947235560591
+low_memory_vs_standard_rss_reduction_pct	86.1684304098277
+low_memory_vs_standard_runtime_slowdown_x	4.82467532467532
