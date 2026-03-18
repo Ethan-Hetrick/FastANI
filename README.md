@@ -60,7 +60,8 @@ Use low-memory sketch-backed querying when RAM is limited:
 - `-r, --ref` expects a single reference genome in FASTA or FASTQ format, optionally gzip-compressed.
 - `--queryList` expects a text file with one query genome path per line.
 - `--refList` expects a text file with one reference genome path per line.
-- `--sketch` expects the prefix of a previously written reference sketch database.
+- `--sketch` expects the prefix of a previously written reference sketch database and is used instead of `--ref` or `--refList`.
+- `--write-ref-sketch` writes a reference sketch database and exits; it requires `--ref` or `--refList` and does not use query input.
 
 ## Common workflows
 
@@ -93,6 +94,8 @@ Notes:
 - `--low-memory` is available only with `--sketch`.
 - `--low-memory` is incompatible with `--matrix` and `--write-ref-sketch`.
 - `--low-memory` trades runtime for lower peak memory usage by loading one sketch bin at a time.
+- `--visualize` can be used in pairwise and multi-genome runs; it writes fragment mappings to `<output>.visual`.
+- The bundled `scripts/visualize.R` example is intended for pairwise plotting, even though `.visual` output can contain multiple genome pairs.
 
 ### All vs all with matrix output
 
@@ -117,10 +120,14 @@ bidirectional fragment mappings / total query fragments
 ```
 
 If `--header` is used, the tabular output includes a header row.
+It does not change the `.matrix` or `.visual` sidecar files.
 
 If `--extended-metrics` is used, the output includes additional fragment-level ANI summary fields.
+These additional fields are added only to the main tabular output.
 
 If `--matrix` is used, FastANI also writes a second file with the `.matrix` extension containing ANI values arranged as a [phylip-formatted lower triangular matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).
+
+If `--visualize` is used, FastANI also writes a `.visual` file containing fragment-level mappings for each reported query/reference comparison.
 
 No ANI output is reported for genome pairs whose ANI is much lower than 80%. For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
 
@@ -163,9 +170,14 @@ Reuse the sketch database:
 
 This is especially useful when the same reference database is queried repeatedly.
 
+Compatibility notes:
+
+- When `--sketch` is used, reference sketches are loaded from disk instead of rebuilding them from `--ref` or `--refList`.
+- `--low-memory` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
+
 ## Visualization of conserved regions
 
-FastANI can emit reciprocal mapping information for visualization in a one-to-one comparison.
+FastANI can emit reciprocal mapping information for visualization in pairwise or multi-genome comparisons.
 
 ```sh
 ./build/fastANI -q B_quintana.fna -r B_henselae.fna --visualize -o fastani.out
@@ -173,6 +185,8 @@ Rscript scripts/visualize.R B_quintana.fna B_henselae.fna fastani.out.visual
 ```
 
 The generated `.visual` file can be plotted with the provided R script and [genoPlotR](https://cran.r-project.org/web/packages/genoPlotR/index.html). See also [issue #100](https://github.com/ParBLiSS/FastANI/issues/100).
+
+For multi-genome runs, the `.visual` file may contain mappings for many genome pairs; in practice, the provided plotting workflow is most straightforward for one pair at a time.
 
 <p align="center">
 <img src="https://i.postimg.cc/kX77DHcr/readme-ANI.jpg" height="350"/>
