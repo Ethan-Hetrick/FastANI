@@ -94,6 +94,8 @@ Notes:
 - `--low-memory` is available only with `--sketch`.
 - `--low-memory` is incompatible with `--matrix` and `--write-ref-sketch`.
 - `--low-memory` trades runtime for lower peak memory usage by loading one sketch bin at a time.
+- `--window-size` sets the minimizer window size manually instead of using FastANI's internally recommended value.
+- Larger `--window-size` values generally reduce minimizer density and can speed up runs at the cost of sensitivity.
 - `--visualize` can be used in pairwise and multi-genome runs; it writes fragment mappings to `<output>.visual`.
 - The bundled `scripts/visualize.R` example is intended for pairwise plotting, even though `.visual` output can contain multiple genome pairs.
 
@@ -174,6 +176,7 @@ Compatibility notes:
 
 - When `--sketch` is used, reference sketches are loaded from disk instead of rebuilding them from `--ref` or `--refList`.
 - `--low-memory` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
+- `--window-size` changes the sketching parameters, so sketch files written with one window size are not interchangeable with runs using a different window size.
 
 ## Visualization of conserved regions
 

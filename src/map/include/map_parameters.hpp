@@ -23,6 +23,7 @@ namespace skch
   {
     int kmerSize;                                     //kmer size for sketching
     int windowSize;                                   //window size used for sketching 
+    int windowSizeManual = 0;                         //CLI-specified window size; 0 means auto
     int minReadLength;                                //minimum read length which code maps
     float minFraction;                                //minimum genome fraction for trusting ANI value
     int threads;                                      //thread count
