@@ -1,0 +1,13 @@
+benchmark/
+build/
+db/
+fastANI_clean/
+docs/pub/data/
+docs/pub/images/
+docs/references/*.pdf
+docs/references/*.html
+*.png
+*.svg
+*.csv
+*.tsv
+*.txt

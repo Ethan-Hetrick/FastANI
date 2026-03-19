@@ -28,7 +28,7 @@ docs:
     expire_in: 1 week
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH'
+    - if: "$CI_COMMIT_BRANCH"
 
 pages:
   stage: docs
@@ -44,4 +44,4 @@ pages:
     paths:
       - public
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"

@@ -204,7 +204,7 @@ The intent is to help a technical reviewer understand what changed, why it chang
 - `--batch-size` exposes a practical speed/memory tradeoff:
   - `batch-size=1` greatly lowers peak memory while remaining faster than the original tool
   - `batch-size=5` is still far below original runtime while recovering much of the overhead of one-shard-at-a-time execution
-  Evidence path: `benchmark/publication_runs.csv`, `benchmark/plots/publication_summary_by_variant.tsv`
+    Evidence path: `benchmark/publication_runs.csv`, `benchmark/plots/publication_summary_by_variant.tsv`
 
 - The corrected sketch-backed full all-v-all workflow is now faster than the original baseline while preserving row-count parity.
   Evidence path: `benchmark/all_v_all_summary.csv`, `benchmark/all_v_all_report.txt`
