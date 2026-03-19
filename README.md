@@ -116,20 +116,20 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 
 The main output is a tab-delimited file. Each row reports:
 
-| Field                        | Included by default | Description                                                                                                                            |
-| ---------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Query                        | yes                 | Query genome path or identifier                                                                                                        |
-| Reference                    | yes                 | Reference genome path or identifier                                                                                                    |
-| ANI                          | yes                 | Estimated average nucleotide identity between the genome pair                                                                          |
-| MatchedFragments             | yes                 | Number of bidirectional fragment mappings supporting the ANI estimate                                                                  |
-| TotalQueryFragments          | yes                 | Total number of query fragments considered for the comparison                                                                          |
-| QueryAlignmentFraction\*     | no                  | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`)                      |
-| ReferenceAlignmentFraction\* | no                  | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
-| FragID_F99\*                 | no                  | Fraction of mapped fragments with ANI at or above 99%                                                                                  |
-| FragID_Stdev\*               | no                  | Standard deviation of fragment-level ANI values                                                                                        |
-| FragID_Q1\*                  | no                  | First quartile of fragment-level ANI values                                                                                            |
-| FragID_Median\*              | no                  | Median fragment-level ANI value                                                                                                        |
-| FragID_Q3\*                  | no                  | Third quartile of fragment-level ANI values                                                                                            |
+| Field                        | Description                                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Query                        | Query genome path or identifier                                                                                                        |
+| Reference                    | Reference genome path or identifier                                                                                                    |
+| ANI                          | Estimated average nucleotide identity between the genome pair                                                                          |
+| MatchedFragments             | Number of bidirectional fragment mappings supporting the ANI estimate                                                                  |
+| TotalQueryFragments          | Total number of query fragments considered for the comparison                                                                          |
+| QueryAlignmentFraction\*     | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`)                      |
+| ReferenceAlignmentFraction\* | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
+| FragID_F99\*                 | Fraction of mapped fragments with ANI at or above 99%                                                                                  |
+| FragID_Stdev\*               | Standard deviation of fragment-level ANI values                                                                                        |
+| FragID_Q1\*                  | First quartile of fragment-level ANI values                                                                                            |
+| FragID_Median\*              | Median fragment-level ANI value                                                                                                        |
+| FragID_Q3\*                  | Third quartile of fragment-level ANI values                                                                                            |
 
 > Asterisk (`*`) indicates fields that are included only when `--extended-metrics` is enabled.
 
