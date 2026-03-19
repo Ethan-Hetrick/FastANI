@@ -32,28 +32,18 @@ If you are running directly from the build tree without installing, use `build/f
 
 ## Quick start
 
-Inspect the installed CLI:
-
 ```sh
+# View help and version information.
 fastANI --help
 fastANI --version
-```
 
-Compute ANI for a single query genome against a single reference genome:
-
-```sh
+# Compute ANI for a single query genome against a single reference genome.
 fastANI -q QUERY_GENOME -r REFERENCE_GENOME -o output.txt
-```
 
-Compute ANI for a single query genome against many references:
-
-```sh
+# Compute ANI for a single query genome against many references.
 fastANI -q QUERY_GENOME --refList references.txt -o output.txt
-```
 
-Compute ANI for many queries against many references:
-
-```sh
+# Compute ANI for many queries against many references.
 fastANI --queryList queries.txt --refList references.txt -o output.txt
 ```
 
@@ -69,33 +59,20 @@ Use sketch-backed workflows when:
 - reference build time matters
 - you want explicit control over RAM usage with `--batch-size`
 
-### 1 vs 1
-
 ```sh
+# 1 vs 1
 fastANI -q query.fa -r reference.fa -o output.txt
-```
 
-### 1 vs 1 with extended metrics
-
-```sh
+# 1 vs 1 with extended metrics
 fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt
-```
 
-### 1 vs many
-
-```sh
+# 1 vs many
 fastANI -q query.fa --refList references.txt -o output.txt
-```
 
-### Many vs many
-
-```sh
+# many vs many
 fastANI --queryList queries.txt --refList references.txt -o output.txt
-```
 
-### Many vs many with matrix output
-
-```sh
+# many vs many with matrix output
 fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
 ```
 
@@ -114,11 +91,14 @@ fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
 Gzip-compressed FASTA/FASTQ input is supported throughout the normal query and reference workflows.
 For heavy benchmarking or repeated runs, uncompressed inputs may be faster because they avoid repeated gzip decompression.
 
-Example command for creating a line-separated reference list:
+<details>
+<summary>Example: create a line-separated reference list</summary>
 
 ```sh
 find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o -name '*.fa.gz' -o -name '*.fna.gz' -o -name '*.fasta.gz' \) | sort > references.txt
 ```
+
+</details>
 
 > If genome lists are copied or created from a Windows application, run `dos2unix` on the list file first to ensure the expected line-ending format.
 
@@ -130,35 +110,27 @@ find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o 
 | `--write-ref-sketch` | `false` | Write a reference sketch database and exit. Requires `--ref` or `--refList`. | Use before repeated sketch-backed querying. |
 | `--matrix` | `false` | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix). | Use for all-vs-all matrix-style analyses. |
 | `--visualize` | `false` | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison. | Use when plotting conserved regions for selected genome pairs. |
-| `--extended-metrics` | `false` | Report additional fragment-level ANI summary fields in the main tabular output only. | Use when you want more detailed fragment summary fields. |
+| `--extended-metrics` | `false` | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries. | Use when you want more detailed fragment summary fields. |
 | `--header` | `false` | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files. | Use for easier downstream parsing. |
 
 The main output is a tab-delimited file. Each row reports:
 
-1. query genome
-2. reference genome
-3. ANI estimate
-4. number of bidirectional fragment mappings
-5. total query fragments
-6. Frac99*
-7. SdANI*
-8. Q1*
-9. Median*
-10. Q3*
+| Field | Included by default | Description |
+| --- | --- | --- |
+| Query | yes | Query genome path or identifier |
+| Reference | yes | Reference genome path or identifier |
+| ANI | yes | Estimated average nucleotide identity between the genome pair |
+| MatchedFragments | yes | Number of bidirectional fragment mappings supporting the ANI estimate |
+| TotalQueryFragments | yes | Total number of query fragments considered for the comparison |
+| QueryAlignmentFraction* | no | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`) |
+| ReferenceAlignmentFraction* | no | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
+| FragID_F99* | no | Fraction of mapped fragments with ANI at or above 99% |
+| FragID_Stdev* | no | Standard deviation of fragment-level ANI values |
+| FragID_Q1* | no | First quartile of fragment-level ANI values |
+| FragID_Median* | no | Median fragment-level ANI value |
+| FragID_Q3* | no | Third quartile of fragment-level ANI values |
 
-> * These fields are included only when `--extended-metrics` is enabled.
-
-- Frac99*: fraction of mapped fragments with ANI at or above 99%
-- SdANI*: standard deviation of fragment-level ANI values
-- Q1*: first quartile of fragment-level ANI values
-- Median*: median fragment-level ANI value
-- Q3*: third quartile of fragment-level ANI values
-
-Alignment fraction with respect to the query genome can be estimated as:
-
-```text
-bidirectional fragment mappings / total query fragments
-```
+> Asterisk (`*`) indicates fields that are included only when `--extended-metrics` is enabled.
 
 > No ANI output is reported for genome pairs whose ANI is much lower than 80%. For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
 
@@ -185,6 +157,9 @@ Most users should leave these at their defaults unless they have validated a dif
 
 #### Estimating `--reference-size` from a reference list
 
+<details>
+<summary>Example: estimate an average genome size for <code>--reference-size</code></summary>
+
 ```sh
 # Reference list with one FASTA path per line.
 ref_list=references.txt
@@ -207,6 +182,8 @@ avg_bases=$(
 
 printf 'average_genome_size=%s\n' "$avg_bases"
 ```
+
+</details>
 
 This is only an example input to `--reference-size`, not a guarantee that the resulting automatic window size will preserve default behavior.
 Using a smaller representative size is the more aggressive choice and can increase minimizer density; using a larger representative size is more conservative for memory/runtime but may reduce sensitivity.
@@ -263,7 +240,8 @@ fastANI -q query.fa --sketch reference_sketch --batch-size 5 -o output.txt
 - For balanced sketches, you can approximate this as `0.10 GiB + 2.8 x batch_size x average_shard_size`.
 - For a safer request on HPC or cloud systems, estimate from the largest shard instead of the average, then add another `20%` headroom for scheduler requests.
 
-Example command for estimating query-time memory from an existing sketch prefix:
+<details>
+<summary>Example: estimate query-time memory from a sketch prefix</summary>
 
 ```sh
 # Sketch prefix and desired shard batch size.
@@ -284,6 +262,8 @@ BEGIN {
 }'
 ```
 
+</details>
+
 This uses the largest sketch shard as a conservative sizing input and reports a safer scheduler request.
 Using the average shard size instead would be a more aggressive estimate and may underpredict memory on uneven datasets.
 
@@ -294,7 +274,8 @@ Using the average shard size instead would be a more aggressive estimate and may
 - For a safer HPC or cloud request, round up to about `requested_ram_gib ~= 1 + 9 x total_genome_gbp`.
 - This is only a heuristic: actual memory use depends on the dataset, repetitiveness, contig structure, and mapping parameters such as `--window-size`.
 
-Example command for estimating sketch-build memory from a FASTA `--refList`:
+<details>
+<summary>Example: estimate sketch-build memory from a FASTA <code>--refList</code></summary>
 
 ```sh
 # Text file containing one reference FASTA path per line.
@@ -320,6 +301,8 @@ BEGIN {
   printf("suggested_request=%.2f GiB\n", req)
 }'
 ```
+
+</details>
 
 This estimates total genomic content by removing FASTA header lines, stripping whitespace, and counting sequence characters, then converts that total into a conservative memory request.
 This request formula is intentionally conservative; a more aggressive estimate would use the lower `0.5 + 7 x total_genome_gbp` rule of thumb instead.

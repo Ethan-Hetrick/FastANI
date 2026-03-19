@@ -6,6 +6,10 @@ FastANI is a tool for fast, alignment-free computation of whole-genome Average N
     This docs site is maintained separately from the GitHub-facing [`README.md`](../README.md).
     The README stays optimized for repository browsing, while this homepage can use MkDocs features such as admonitions and richer navigation.
 
+## On this page
+
+[TOC]
+
 ## Start Here
 
 - [Installation guide](INSTALL.txt)

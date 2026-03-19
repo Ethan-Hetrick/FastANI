@@ -425,11 +425,13 @@ namespace cgi
     
       if(parameters.extendedMetrics)
       {
-        outstrm << "\t" << "Frac99"
-                << "\t" << "SdANI"
-                << "\t" << "Q1"
-                << "\t" << "Median"
-                << "\t" << "Q3";
+        outstrm << "\t" << "QueryAlignmentFraction"
+                << "\t" << "ReferenceAlignmentFraction"
+                << "\t" << "FragID_F99"
+                << "\t" << "FragID_Stdev"
+                << "\t" << "FragID_Q1"
+                << "\t" << "FragID_Median"
+                << "\t" << "FragID_Q3";
       }
     
       outstrm << "\n";
@@ -451,6 +453,14 @@ namespace cgi
       uint64_t refGenomeLength = genomeLengths[refGenome]; 
       uint64_t minGenomeLength = std::min(queryGenomeLength, refGenomeLength);
       uint64_t sharedLength = e.countSeq * parameters.minReadLength;
+      float queryAlignmentCoverage =
+        (e.totalQueryFragments > 0)
+        ? static_cast<float>(e.countSeq) / static_cast<float>(e.totalQueryFragments)
+        : 0.0f;
+      float referenceAlignmentCoverage =
+        (refGenomeLength > 0)
+        ? static_cast<float>(sharedLength) / static_cast<float>(refGenomeLength)
+        : 0.0f;
 
       //Checking if shared genome is above a certain fraction of genome length
       if(sharedLength >= minGenomeLength * parameters.minFraction)
@@ -463,7 +473,9 @@ namespace cgi
         
         if(parameters.extendedMetrics)
         {
-          outstrm << "\t" << e.frac99
+          outstrm << "\t" << queryAlignmentCoverage
+                  << "\t" << referenceAlignmentCoverage
+                  << "\t" << e.frac99
                   << "\t" << e.sdAni
                   << "\t" << e.q1Ani
                   << "\t" << e.medianAni
