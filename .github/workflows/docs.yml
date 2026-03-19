@@ -35,6 +35,13 @@ jobs:
       - name: Use README as the docs homepage
         run: |
           cp README.md docs/index.md
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("docs/index.md")
+          text = path.read_text()
+          text = text.replace('src="images/readme-ANI.svg"', 'src="images/comparison.jpg"')
+          path.write_text(text)
+          PY
           cp INSTALL.txt docs/INSTALL.txt
           cp LICENSE docs/LICENSE
           mkdir -p docs/images
