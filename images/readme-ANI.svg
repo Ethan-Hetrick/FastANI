@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="920" height="420" viewBox="0 0 920 420" role="img" aria-labelledby="title desc">
+  <title id="title">Illustrative FastANI conserved-region visualization</title>
+  <desc id="desc">A schematic pairwise genome comparison with conserved blocks connected between two genomes.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#f6fbff"/>
+      <stop offset="100%" stop-color="#eef4f7"/>
+    </linearGradient>
+    <style>
+      .label { font: 600 20px Arial, sans-serif; fill: #183642; }
+      .note { font: 15px Arial, sans-serif; fill: #48626b; }
+      .small { font: 13px Arial, sans-serif; fill: #5e747d; }
+      .outline { fill: none; stroke: #37545d; stroke-width: 2; }
+      .linkA { fill: #7fb3d5; fill-opacity: 0.35; stroke: #4d91ba; stroke-width: 1.5; }
+      .linkB { fill: #f5b27d; fill-opacity: 0.35; stroke: #db8c45; stroke-width: 1.5; }
+      .linkC { fill: #9ad0b0; fill-opacity: 0.35; stroke: #5caa7c; stroke-width: 1.5; }
+      .gene1 { fill: #2f6f8a; }
+      .gene2 { fill: #d97b2d; }
+      .gene3 { fill: #4b9b68; }
+      .gene4 { fill: #8c4fa5; }
+    </style>
+  </defs>
+
+  <rect width="920" height="420" fill="url(#bg)"/>
+
+  <text x="48" y="44" class="label">Example conserved-region view from FastANI fragment mappings</text>
+  <text x="48" y="70" class="note">Schematic illustration for documentation. Pairwise plotting is provided by scripts/visualize.R.</text>
+
+  <text x="60" y="148" class="label">Query genome</text>
+  <text x="60" y="308" class="label">Reference genome</text>
+
+  <rect x="210" y="112" width="630" height="54" rx="12" fill="#ffffff" stroke="#aac2cb" stroke-width="2"/>
+  <rect x="210" y="272" width="630" height="54" rx="12" fill="#ffffff" stroke="#aac2cb" stroke-width="2"/>
+
+  <rect x="240" y="126" width="88" height="26" rx="6" class="gene1"/>
+  <rect x="362" y="126" width="118" height="26" rx="6" class="gene2"/>
+  <rect x="534" y="126" width="146" height="26" rx="6" class="gene3"/>
+  <rect x="726" y="126" width="72" height="26" rx="6" class="gene4"/>
+
+  <rect x="262" y="286" width="104" height="26" rx="6" class="gene1"/>
+  <rect x="410" y="286" width="106" height="26" rx="6" class="gene2"/>
+  <rect x="560" y="286" width="138" height="26" rx="6" class="gene3"/>
+  <rect x="736" y="286" width="56" height="26" rx="6" class="gene4"/>
+
+  <polygon class="linkA" points="240,152 328,152 366,286 262,286"/>
+  <polygon class="linkB" points="362,152 480,152 516,286 410,286"/>
+  <polygon class="linkC" points="534,152 680,152 698,286 560,286"/>
+  <polygon class="linkA" points="726,152 798,152 792,286 736,286"/>
+
+  <path d="M220 198 L830 198" class="outline" stroke-dasharray="7 8"/>
+  <text x="580" y="193" class="small">Conserved blocks identified from reciprocal fragment mappings</text>
+
+  <text x="240" y="360" class="note">This local SVG replaces the old external README image so documentation pages render reliably.</text>
+</svg>

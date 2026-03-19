@@ -19,6 +19,8 @@ docs:
     - cp README.md docs/index.md
     - cp INSTALL.txt docs/INSTALL.txt
     - cp LICENSE docs/LICENSE
+    - mkdir -p docs/images
+    - cp -r images/. docs/images/
     - mkdir -p docs/tests
     - cp -r tests/data docs/tests/data
     - mkdocs build --strict
@@ -28,7 +30,7 @@ docs:
     expire_in: 1 week
   rules:
     - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
-    - if: '$CI_COMMIT_BRANCH'
+    - if: "$CI_COMMIT_BRANCH"
 
 pages:
   stage: docs
@@ -36,6 +38,8 @@ pages:
     - cp README.md docs/index.md
     - cp INSTALL.txt docs/INSTALL.txt
     - cp LICENSE docs/LICENSE
+    - mkdir -p docs/images
+    - cp -r images/. docs/images/
     - mkdir -p docs/tests
     - cp -r tests/data docs/tests/data
     - mkdocs build --strict
@@ -44,4 +48,4 @@ pages:
     paths:
       - public
   rules:
-    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
+    - if: "$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH"

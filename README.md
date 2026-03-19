@@ -330,7 +330,11 @@ The generated `.visual` file can be plotted with the provided R script and [geno
 For multi-genome runs, the `.visual` file may contain mappings for many genome pairs; in practice, the provided plotting workflow is most straightforward for one pair at a time.
 
 <p align="center">
-<img src="https://i.postimg.cc/kX77DHcr/readme-ANI.jpg" height="350"/>
+  <img
+    src="images/readme-ANI.svg"
+    height="350"
+    alt="Illustrative FastANI conserved-region visualization"
+  />
 </p>
 
 ## Parallelization
