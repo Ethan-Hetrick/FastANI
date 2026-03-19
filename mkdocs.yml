@@ -1,0 +1,33 @@
+site_name: FastANI
+site_description: FastANI documentation, benchmarks, and publication materials
+docs_dir: docs
+site_dir: site
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+
+nav:
+  - Home: index.md
+  - Changelog: CHANGELOG.md
+  - Benchmark:
+      - Overview: benchmark/index.md
+      - Session Context: benchmark/FUTURE_SESSION_CONTEXT.md
+      - Commands: benchmark/BENCHMARK_COMMANDS.md
+  - Publication:
+      - Overview: pub/index.md
+      - Draft: pub/pub_draft.md
+  - References:
+      - Overview: references/index.md
