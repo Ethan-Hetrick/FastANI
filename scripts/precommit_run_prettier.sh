@@ -14,4 +14,8 @@ if [[ -z "$prettier_bin" ]]; then
   exit 1
 fi
 
-"$prettier_bin" --write "$@"
+if [[ $# -eq 0 ]]; then
+  set -- --check .
+fi
+
+"$prettier_bin" "$@"

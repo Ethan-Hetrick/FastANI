@@ -10,6 +10,15 @@ repos:
         entry: scripts/precommit_run_prettier.sh
         language: system
         files: \.(md|ya?ml)$
+        args:
+          - --check
+        stages:
+          - pre-commit
+      - id: fastani-clang-format
+        name: Check C/C++ formatting with clang-format
+        entry: scripts/precommit_check_clang_format.sh
+        language: system
+        files: \.(c|cc|cpp|cxx|h|hpp)$
         stages:
           - pre-commit
       - id: fastani-compile
