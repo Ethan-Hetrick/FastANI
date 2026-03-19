@@ -17,6 +17,13 @@ docs:
   stage: docs
   script:
     - cp README.md docs/index.md
+    - python3 - <<'PY'
+from pathlib import Path
+path = Path("docs/index.md")
+text = path.read_text()
+text = text.replace('src="docs/images/comparison.jpg"', 'src="images/comparison.jpg"')
+path.write_text(text)
+PY
     - cp INSTALL.txt docs/INSTALL.txt
     - cp LICENSE docs/LICENSE
     - mkdir -p docs/images
@@ -36,6 +43,13 @@ pages:
   stage: docs
   script:
     - cp README.md docs/index.md
+    - python3 - <<'PY'
+from pathlib import Path
+path = Path("docs/index.md")
+text = path.read_text()
+text = text.replace('src="docs/images/comparison.jpg"', 'src="images/comparison.jpg"')
+path.write_text(text)
+PY
     - cp INSTALL.txt docs/INSTALL.txt
     - cp LICENSE docs/LICENSE
     - mkdir -p docs/images
