@@ -8,7 +8,10 @@ theme:
   features:
     - navigation.sections
     - navigation.expand
+    - navigation.footer
     - navigation.top
+    - toc.integrate
+    - toc.follow
     - content.code.copy
 
 markdown_extensions:

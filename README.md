@@ -410,7 +410,7 @@ Additional compatibility details:
 - Non-default `--reference-size` values can change the automatically chosen `--window-size`, so they can also change sketch compatibility and output behavior.
 - More generally, sketches should be reused only when the mapping configuration is compatible with the configuration used when the sketch was written.
 
-## Known behavior
+## Troubleshooting
 
 ### Asymmetry in ANI computation
 
@@ -418,10 +418,18 @@ FastANI can report slightly different ANI values for a genome pair `(A, B)` depe
 
 In practice, this difference is usually small. When `--matrix` output is requested, FastANI reports a single value per genome pair corresponding to the average of both directions.
 
-## Quality guidance
+### Input quality guidance
 
 Input quality matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
 
-## Troubleshooting and support
+### Out-of-memory errors
+
+If a sketch-backed query runs out of memory, rerun it with `--batch-size` to limit how many sketch shards are loaded at once.
+
+- `--batch-size 1` gives the lowest memory footprint.
+- Intermediate values such as `--batch-size 5` trade more RAM for better runtime.
+- Omitting `--batch-size` loads all sketch shards at once and uses the most memory.
+
+## Support
 
 Bug reports, feature requests, and general feedback are welcome through the [GitHub issue tracker](https://github.com/ParBLiSS/FastANI/issues).
