@@ -331,9 +331,9 @@ For multi-genome runs, the `.visual` file may contain mappings for many genome p
 
 <p align="center">
   <img
-    src="images/readme-ANI.svg"
+    src="docs/images/comparison.jpg"
     height="350"
-    alt="Illustrative FastANI conserved-region visualization"
+    alt="Example FastANI conserved-region visualization"
   />
 </p>
 

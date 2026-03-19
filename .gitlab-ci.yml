@@ -21,7 +21,7 @@ docs:
 from pathlib import Path
 path = Path("docs/index.md")
 text = path.read_text()
-text = text.replace('src="images/readme-ANI.svg"', 'src="images/comparison.jpg"')
+text = text.replace('src="docs/images/comparison.jpg"', 'src="images/comparison.jpg"')
 path.write_text(text)
 PY
     - cp INSTALL.txt docs/INSTALL.txt
@@ -47,7 +47,7 @@ pages:
 from pathlib import Path
 path = Path("docs/index.md")
 text = path.read_text()
-text = text.replace('src="images/readme-ANI.svg"', 'src="images/comparison.jpg"')
+text = text.replace('src="docs/images/comparison.jpg"', 'src="images/comparison.jpg"')
 path.write_text(text)
 PY
     - cp INSTALL.txt docs/INSTALL.txt
