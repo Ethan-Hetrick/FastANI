@@ -50,11 +50,13 @@ fastANI --queryList queries.txt --refList references.txt -o output.txt
 ## Choose a workflow
 
 Use plain query/reference inputs when:
+
 - you are running one-off analyses
 - you do not plan to reuse the same reference database repeatedly
 - you want FastANI to rebuild reference data directly from the supplied FASTA/FASTQ inputs
 
 Use sketch-backed workflows when:
+
 - you will query the same reference set repeatedly
 - reference build time matters
 - you want explicit control over RAM usage with `--batch-size`
@@ -83,13 +85,13 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 
 ### Input options
 
-| Parameter | Default | Description | Typical use |
-| --- | --- | --- | --- |
-| `-q, --query` | `null` | Single query genome in FASTA/FASTQ format, optionally gzip-compressed. | Use for 1 vs 1 or 1 vs many runs. |
-| `-r, --ref` | `null` | Single reference genome in FASTA/FASTQ format, optionally gzip-compressed. | Use for simple pairwise runs. |
-| `--ql, --queryList` | `null` | Text file listing query genome paths, one genome per line. | Use for many-query runs. |
-| `--rl, --refList` | `null` | Text file listing reference genome paths, one genome per line. | Use for many-reference runs or sketch creation. |
-| `--sketch` | `null` | Load a previously written reference sketch prefix instead of rebuilding references. | Use for repeated querying against the same reference set. |
+| Parameter           | Default | Description                                                                         | Typical use                                               |
+| ------------------- | ------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `-q, --query`       | `null`  | Single query genome in FASTA/FASTQ format, optionally gzip-compressed.              | Use for 1 vs 1 or 1 vs many runs.                         |
+| `-r, --ref`         | `null`  | Single reference genome in FASTA/FASTQ format, optionally gzip-compressed.          | Use for simple pairwise runs.                             |
+| `--ql, --queryList` | `null`  | Text file listing query genome paths, one genome per line.                          | Use for many-query runs.                                  |
+| `--rl, --refList`   | `null`  | Text file listing reference genome paths, one genome per line.                      | Use for many-reference runs or sketch creation.           |
+| `--sketch`          | `null`  | Load a previously written reference sketch prefix instead of rebuilding references. | Use for repeated querying against the same reference set. |
 
 Gzip-compressed FASTA/FASTQ input is supported throughout the normal query and reference workflows.
 For heavy benchmarking or repeated runs, uncompressed inputs may be faster because they avoid repeated gzip decompression.
@@ -107,32 +109,32 @@ find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o 
 
 ### Output options
 
-| Parameter | Default | Description | Typical use |
-| --- | --- | --- | --- |
-| `-o, --output` | `null` | Write the main tabular ANI results to this file. | Use for all runs. |
-| `--write-ref-sketch` | `false` | Write a reference sketch database and exit. Requires `--ref` or `--refList`. | Use before repeated sketch-backed querying. |
-| `--matrix` | `false` | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix). | Use for all-vs-all matrix-style analyses. |
+| Parameter               | Default | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                |
+| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `-o, --output`          | `null`  | Write the main tabular ANI results to this file.                                                                                                                                                                                                                                                                                          | Use for all runs.                                                                          |
+| `--write-ref-sketch`    | `false` | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                |
+| `--matrix`              | `false` | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                  |
 | `--average-reciprocals` | `false` | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
-| `--visualize` | `false` | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison. | Use when plotting conserved regions for selected genome pairs. |
-| `--extended-metrics` | `false` | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries. | Use when you want more detailed fragment summary fields. |
-| `--header` | `false` | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files. | Use for easier downstream parsing. |
+| `--visualize`           | `false` | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                             |
+| `--extended-metrics`    | `false` | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                   |
+| `--header`              | `false` | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                         |
 
 The main output is a tab-delimited file. Each row reports:
 
-| Field | Included by default | Description |
-| --- | --- | --- |
-| Query | yes | Query genome path or identifier |
-| Reference | yes | Reference genome path or identifier |
-| ANI | yes | Estimated average nucleotide identity between the genome pair |
-| MatchedFragments | yes | Number of bidirectional fragment mappings supporting the ANI estimate |
-| TotalQueryFragments | yes | Total number of query fragments considered for the comparison |
-| QueryAlignmentFraction* | no | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`) |
-| ReferenceAlignmentFraction* | no | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
-| FragID_F99* | no | Fraction of mapped fragments with ANI at or above 99% |
-| FragID_Stdev* | no | Standard deviation of fragment-level ANI values |
-| FragID_Q1* | no | First quartile of fragment-level ANI values |
-| FragID_Median* | no | Median fragment-level ANI value |
-| FragID_Q3* | no | Third quartile of fragment-level ANI values |
+| Field                        | Included by default | Description                                                                                                                            |
+| ---------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Query                        | yes                 | Query genome path or identifier                                                                                                        |
+| Reference                    | yes                 | Reference genome path or identifier                                                                                                    |
+| ANI                          | yes                 | Estimated average nucleotide identity between the genome pair                                                                          |
+| MatchedFragments             | yes                 | Number of bidirectional fragment mappings supporting the ANI estimate                                                                  |
+| TotalQueryFragments          | yes                 | Total number of query fragments considered for the comparison                                                                          |
+| QueryAlignmentFraction\*     | no                  | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`)                      |
+| ReferenceAlignmentFraction\* | no                  | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
+| FragID_F99\*                 | no                  | Fraction of mapped fragments with ANI at or above 99%                                                                                  |
+| FragID_Stdev\*               | no                  | Standard deviation of fragment-level ANI values                                                                                        |
+| FragID_Q1\*                  | no                  | First quartile of fragment-level ANI values                                                                                            |
+| FragID_Median\*              | no                  | Median fragment-level ANI value                                                                                                        |
+| FragID_Q3\*                  | no                  | Third quartile of fragment-level ANI values                                                                                            |
 
 > Asterisk (`*`) indicates fields that are included only when `--extended-metrics` is enabled.
 
@@ -209,14 +211,14 @@ Warning: non-default mapping parameters can change reported ANI values, hit coun
 
 Most users should leave these at their defaults unless they have validated a different setup for their workload.
 
-| Parameter | Default | Description | Typical use |
-| --- | --- | --- | --- |
-| `--window-size` | auto | Manually sets minimizer window size. Larger values usually reduce minimizer density and lower memory/runtime, but they can also change sensitivity and reported hits. In local benchmarking, `32` gave a noticeable runtime reduction with measurable result drift, while more aggressive values such as `36` and `48` drifted more. | Use only when you want direct control over sketching density and have validated the effect on your dataset. |
-| `--reference-size` | `5000000` | Changes the assumption used by the automatic window-size calculation. The default is a rough estimate of average bacterial genome size. Larger values usually drive larger automatically chosen windows; smaller values usually do the opposite. If `--window-size` is set manually, this parameter no longer affects sketching. | Use when the default bacterial-genome assumption is a poor fit, such as for viruses or microbial eukaryotes, but you still want automatic window selection. |
-| `--fragLen` | `3000` | Changes query fragmentation. | Use only after validating the sensitivity/runtime tradeoff for the dataset. |
-| `-k, --kmer` | `16` | Changes the sketching unit. | Advanced tuning only; larger values can change sensitivity. |
-| `--minFraction` | `0.2` | Changes which genome pairs are trusted and reported. | Use when you want stricter or looser shared-genome filtering. |
-| `--maxRatioDiff` | `100.0` | Changes reference hash-density filtering during mapping. | Advanced debugging or workload-specific tuning. |
+| Parameter          | Default   | Description                                                                                                                                                                                                                                                                                                                          | Typical use                                                                                                                                                 |
+| ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--window-size`    | auto      | Manually sets minimizer window size. Larger values usually reduce minimizer density and lower memory/runtime, but they can also change sensitivity and reported hits. In local benchmarking, `32` gave a noticeable runtime reduction with measurable result drift, while more aggressive values such as `36` and `48` drifted more. | Use only when you want direct control over sketching density and have validated the effect on your dataset.                                                 |
+| `--reference-size` | `5000000` | Changes the assumption used by the automatic window-size calculation. The default is a rough estimate of average bacterial genome size. Larger values usually drive larger automatically chosen windows; smaller values usually do the opposite. If `--window-size` is set manually, this parameter no longer affects sketching.     | Use when the default bacterial-genome assumption is a poor fit, such as for viruses or microbial eukaryotes, but you still want automatic window selection. |
+| `--fragLen`        | `3000`    | Changes query fragmentation.                                                                                                                                                                                                                                                                                                         | Use only after validating the sensitivity/runtime tradeoff for the dataset.                                                                                 |
+| `-k, --kmer`       | `16`      | Changes the sketching unit.                                                                                                                                                                                                                                                                                                          | Advanced tuning only; larger values can change sensitivity.                                                                                                 |
+| `--minFraction`    | `0.2`     | Changes which genome pairs are trusted and reported.                                                                                                                                                                                                                                                                                 | Use when you want stricter or looser shared-genome filtering.                                                                                               |
+| `--maxRatioDiff`   | `100.0`   | Changes reference hash-density filtering during mapping.                                                                                                                                                                                                                                                                             | Advanced debugging or workload-specific tuning.                                                                                                             |
 
 #### Warning: Mapping parameters will significantly change results
 
@@ -259,13 +261,13 @@ Using a smaller representative size is the more aggressive choice and can increa
 
 ### Execution options
 
-| Parameter | Default | Description | Typical use |
-| --- | --- | --- | --- |
-| `-t, --threads` | `1` | Thread count for parallel execution. | Increase for faster runs on multicore systems. |
-| `--batch-size` | all shards | Load sketch shards in batches during sketch-backed querying; requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. A value of `1` gives the lowest peak memory usage, while omitting the option loads all shards at once. | Use when RAM is limited or when you want to tune the memory/runtime tradeoff. |
-| `-s, --sanityCheck` | `false` | Run the built-in sanity check mode. | Use for debugging or internal validation. |
-| `-h, --help` | `false` | Print the help page. | Use to inspect the CLI quickly. |
-| `-v, --version` | `false` | Show the version. | Use when reporting or debugging installations. |
+| Parameter           | Default    | Description                                                                                                                                                                                                                                           | Typical use                                                                   |
+| ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `-t, --threads`     | `1`        | Thread count for parallel execution.                                                                                                                                                                                                                  | Increase for faster runs on multicore systems.                                |
+| `--batch-size`      | all shards | Load sketch shards in batches during sketch-backed querying; requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. A value of `1` gives the lowest peak memory usage, while omitting the option loads all shards at once. | Use when RAM is limited or when you want to tune the memory/runtime tradeoff. |
+| `-s, --sanityCheck` | `false`    | Run the built-in sanity check mode.                                                                                                                                                                                                                   | Use for debugging or internal validation.                                     |
+| `-h, --help`        | `false`    | Print the help page.                                                                                                                                                                                                                                  | Use to inspect the CLI quickly.                                               |
+| `-v, --version`     | `false`    | Show the version.                                                                                                                                                                                                                                     | Use when reporting or debugging installations.                                |
 
 FastANI can persist reference sketches and reuse them across runs.
 
@@ -437,13 +439,13 @@ For even larger workloads, users can also divide a large reference database into
 
 Only options with limited interoperability are listed here. `✓` means the combination is supported. `X` means the combination is incompatible or not applicable.
 
-| Option | `--ref` / `--refList` | `--sketch` | `--write-ref-sketch` | `--batch-size` | `--matrix` |
-| --- | --- | --- | --- | --- | --- |
-| `--ref` / `--refList` | ✓ | X | ✓ | X | ✓ |
-| `--sketch` | X | ✓ | X | ✓ | ✓ |
-| `--write-ref-sketch` | ✓ | X | ✓ | X | ✓ |
-| `--batch-size` | X | ✓ | X | ✓ | X |
-| `--matrix` | ✓ | ✓ | ✓ | X | ✓ |
+| Option                | `--ref` / `--refList` | `--sketch` | `--write-ref-sketch` | `--batch-size` | `--matrix` |
+| --------------------- | --------------------- | ---------- | -------------------- | -------------- | ---------- |
+| `--ref` / `--refList` | ✓                     | X          | ✓                    | X              | ✓          |
+| `--sketch`            | X                     | ✓          | X                    | ✓              | ✓          |
+| `--write-ref-sketch`  | ✓                     | X          | ✓                    | X              | ✓          |
+| `--batch-size`        | X                     | ✓          | X                    | ✓              | X          |
+| `--matrix`            | ✓                     | ✓          | ✓                    | X              | ✓          |
 
 Additional compatibility details:
 
