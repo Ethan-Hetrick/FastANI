@@ -3,52 +3,54 @@
  * @author  Chirag Jain <cjain7@gatech.edu>
  */
 
-#ifndef SKETCH_CONFIG_HPP 
+#ifndef SKETCH_CONFIG_HPP
 #define SKETCH_CONFIG_HPP
 
 #include <vector>
 #include <string>
 
-//Switch to enable timing of L1 and L2 stages for each read
-//Timings are reported in a file
-//#define ENABLE_TIME_PROFILE_L1_L2 1
+// Switch to enable timing of L1 and L2 stages for each read
+// Timings are reported in a file
+// #define ENABLE_TIME_PROFILE_L1_L2 1
 
 namespace skch
 {
-  /**
-   * @brief   configuration parameters for building sketch
-   *          expected to be initialized using command line arguments
-   */
-  struct Parameters
-  {
-    int kmerSize;                                     //kmer size for sketching
-    int windowSize;                                   //window size used for sketching 
-    int windowSizeManual = 0;                         //CLI-specified window size; 0 means auto
-    int minReadLength;                                //minimum read length which code maps
-    float minFraction;                                //minimum genome fraction for trusting ANI value
-    int threads;                                      //thread count
-    int alphabetSize;                                 //alphabet size
-    uint64_t referenceSize;                           //Approximate reference size
-    float percentageIdentity;                         //user defined threshold for good similarity
-    double p_value;                                   //user defined threshold for p value
-    std::vector<std::string> refSequences;            //reference sequence(s)
-    std::vector<uint64_t> refSequenceLengths;         //reference genome lengths aligned with refSequences when available
-    std::vector<std::string> querySequences;          //query sequence(s)
-    std::string outFileName;                          //output file name
-    std::string writeRefSketchFile = "";
-    bool writeRefSketchMode = false;
-    std::string sketchFile;
-    bool loadSketchMode;
-    bool reportAll;                                   //Report all alignments if this is true
-    bool visualize;                                   //Visualize the conserved regions of two genomes
-    bool matrixOutput;                                //report fastani results as lower triangular matrix
-    bool averageReciprocals = false;                  //average reciprocal ANI-like summaries in sparse tabular output
-    bool extendedMetrics = false;                     //report extra fragment-level ANI metrics
-    bool header = false;                              //write a header row in tabular output
-    int batchSize = 0;                                //load sketch bins in batches during sketch-backed querying; 0 means load all shards at once
-    float maxRatioDiff;                               //max Ratio for sanity check
-    bool sanityCheck;                                 // Sanity check for extreme Cases
-  };
-}
+/**
+ * @brief   configuration parameters for building sketch
+ *          expected to be initialized using command line arguments
+ */
+struct Parameters
+{
+  int kmerSize;                          // kmer size for sketching
+  int windowSize;                        // window size used for sketching
+  int windowSizeManual = 0;              // CLI-specified window size; 0 means auto
+  int minReadLength;                     // minimum read length which code maps
+  float minFraction;                     // minimum genome fraction for trusting ANI value
+  int threads;                           // thread count
+  int alphabetSize;                      // alphabet size
+  uint64_t referenceSize;                // Approximate reference size
+  float percentageIdentity;              // user defined threshold for good similarity
+  double p_value;                        // user defined threshold for p value
+  std::vector<std::string> refSequences; // reference sequence(s)
+  std::vector<uint64_t>
+    refSequenceLengths; // reference genome lengths aligned with refSequences when available
+  std::vector<std::string> querySequences; // query sequence(s)
+  std::string outFileName;                 // output file name
+  std::string writeRefSketchFile = "";
+  bool writeRefSketchMode = false;
+  std::string sketchFile;
+  bool loadSketchMode;
+  bool reportAll;                  // Report all alignments if this is true
+  bool visualize;                  // Visualize the conserved regions of two genomes
+  bool matrixOutput;               // report fastani results as lower triangular matrix
+  bool averageReciprocals = false; // average reciprocal ANI-like summaries in sparse tabular output
+  bool extendedMetrics = false;    // report extra fragment-level ANI metrics
+  bool header = false;             // write a header row in tabular output
+  int batchSize =
+    0; // load sketch bins in batches during sketch-backed querying; 0 means load all shards at once
+  float maxRatioDiff; // max Ratio for sanity check
+  bool sanityCheck;   // Sanity check for extreme Cases
+};
+} // namespace skch
 
 #endif
