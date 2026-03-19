@@ -2,9 +2,9 @@ name: Build and Deploy Docs
 
 on:
   push:
-    branches: ["master", "main"]
+    branches: ["master", "main", "perf/all-v-all"]
   pull_request:
-    branches: ["master", "main"]
+    branches: ["master", "main", "perf/all-v-all"]
   workflow_dispatch:
 
 permissions:
