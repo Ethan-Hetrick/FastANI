@@ -4,9 +4,7 @@ run-name: Build FastANI with CMake and Test by ${{github.actor}}
 
 on:
   push:
-    branches: ["master"]
   pull_request:
-    branches: ["master"]
 
   # Allows to run this workflow from the Actions tab (w.o. trigger)
   workflow_dispatch:
