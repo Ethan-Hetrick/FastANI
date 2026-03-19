@@ -100,6 +100,7 @@ namespace skch
     std::cerr << "Query = " << parameters.querySequences << std::endl;
     std::cerr << "Kmer size = " << parameters.kmerSize << std::endl;
     std::cerr << "Window size = " << parameters.windowSize << std::endl;
+    std::cerr << "Reference size assumption = " << parameters.referenceSize << std::endl;
     std::cerr << "Fragment length = " << parameters.minReadLength << std::endl;
     std::cerr << "Threads = " << parameters.threads << std::endl;
     if(parameters.batchSize > 0)
@@ -173,6 +174,9 @@ namespace skch
     auto window_size_cmd =
       (clipp::option("--window-size") & clipp::value("value", parameters.windowSizeManual))
       % "set minimizer window size manually instead of using the internally recommended value";
+    auto reference_size_cmd =
+      (clipp::option("--reference-size") & clipp::value("value", parameters.referenceSize))
+      % "reference size assumption used for automatic window-size selection; default is 5,000,000 bp as a rough average bacterial genome size";
     auto fraglen_cmd = (clipp::option("--fragLen") & clipp::value("value", parameters.minReadLength)) % "fragment length [default : 3,000]";
     auto minfraction_cmd = (clipp::option("--minFraction") & clipp::value("value", parameters.minFraction)) % "minimum fraction of genome that must be shared for trusting ANI. If reference and query genome size differ, smaller one among the two is considered. [default : 0.2]";
     auto maxratio_cmd = (clipp::option("--maxRatioDiff") & clipp::value("value", parameters.maxRatioDiff)) % "maximum difference between (Total Ref. Length/Total Occ. Hashes) and (Total Ref. Length/Total No. Hashes). [default : 10.0]";
@@ -209,6 +213,7 @@ namespace skch
       (
        kmer_cmd,
        window_size_cmd,
+       reference_size_cmd,
        fraglen_cmd,
        minfraction_cmd,
        maxratio_cmd
@@ -345,6 +350,12 @@ namespace skch
     if(parameters.windowSizeManual < 0)
     {
       std::cerr << "ERROR, --window-size must be greater than 0 when provided\n";
+      exit(1);
+    }
+
+    if(parameters.referenceSize < 1)
+    {
+      std::cerr << "ERROR, --reference-size must be at least 1 when provided\n";
       exit(1);
     }
 

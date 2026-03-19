@@ -99,6 +99,7 @@ Warning: these parameters can change reported ANI values, hit counts, sensitivit
 
 - `-k, --kmer`: k-mer size used by the mapper. The current implementation expects values up to `16`; larger values can change sensitivity and should be used cautiously.
 - `--window-size`: manually set the minimizer window size instead of using FastANI's internally recommended value.
+- `--reference-size`: reference-size assumption used by the automatic window-size calculation. The default is `5,000,000` bp, which is intended as a rough estimate of average bacterial genome size.
 - `--fragLen`: fragment length used for query fragmentation.
 - `--minFraction`: minimum shared fraction required before trusting ANI for a genome pair.
 - `--maxRatioDiff`: upper bound on the allowed difference between reference hash-density statistics used during mapping.
@@ -106,10 +107,34 @@ Warning: these parameters can change reported ANI values, hit counts, sensitivit
 Guidance:
 
 - Larger `--window-size` values reduce minimizer density, which usually lowers runtime and memory use but can change ANI estimates and which hits are reported.
+- `--reference-size` affects only the automatic window-size calculation. Larger values usually lead to larger automatically chosen windows, which can lower runtime and memory use but may reduce sensitivity; smaller values usually do the opposite.
+- If `--window-size` is set manually, `--reference-size` no longer affects sketching because the automatic calculation is bypassed.
 - In local benchmarking on one Shigella-against-sketch workload, `--window-size 32` reduced query runtime noticeably relative to the default sketch settings, but also changed reported results enough that it should be treated as an accuracy/sensitivity tradeoff.
 - More aggressive values such as `--window-size 36` or `48` may speed runs further, but they produced larger result drift in the same benchmark and are harder to justify without workload-specific validation.
 - Changing `--fragLen` can also affect sensitivity and reported matches; it is not only a performance knob.
 - If you care about comparability to published FastANI defaults or to earlier runs, prefer the recommended/default mapping parameters.
+
+Example command for estimating average genome size from a reference list:
+
+```sh
+# Reference list with one FASTA path per line.
+ref_list=references.txt
+
+# Count non-header sequence characters and average over files.
+avg_bases=$(
+  while IFS= read -r fasta; do
+    gzip -cd "$fasta" 2>/dev/null || cat "$fasta"
+  done < "$ref_list" |
+    grep -v '^>' |
+    tr -d '[:space:]' |
+    awk -v n="$(wc -l < "$ref_list")" '{print int(length($0) / n)}'
+)
+
+printf 'average_genome_size=%s\n' "$avg_bases"
+```
+
+This is only an example input to `--reference-size`, not a guarantee that the resulting automatic window size will preserve default behavior.
+Using a smaller representative size is the more aggressive choice and can increase minimizer density; using a larger representative size is more conservative for memory/runtime but may reduce sensitivity.
 
 ### Execution options
 
@@ -157,6 +182,7 @@ Using the average shard size instead would be a more aggressive estimate and may
 - `--header` and `--extended-metrics` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
 - `--visualize` works for pairwise and multi-genome runs, but the bundled `scripts/visualize.R` example is pairwise-oriented.
 - Sketches written with one `--window-size` are not interchangeable with runs using a different `--window-size`.
+- Non-default `--reference-size` values can change the automatically chosen `--window-size`, so they can also change sketch compatibility and output behavior.
 - More generally, sketches should be reused only when the mapping configuration is compatible with the configuration used when the sketch was written.
 
 ## Common workflows
@@ -194,6 +220,7 @@ Notes:
 - Omitting `--batch-size` loads all sketch shards at once and gives the best sketch-backed runtime when memory is not a bottleneck.
 - `--batch-size` should be at most the number of sketch shards available for the run; values above that behave like loading all shards.
 - `--window-size` sets the minimizer window size manually instead of using FastANI's internally recommended value.
+- `--reference-size` changes the assumption used by the automatic `--window-size` calculation and is mainly useful when the default bacterial-genome assumption is a poor fit for the dataset.
 - Larger `--window-size` values generally reduce minimizer density and can speed up runs at the cost of sensitivity.
 - Non-default mapping parameters, especially `--window-size`, can change reported ANI values and which hits appear in the output.
 - `--visualize` can be used in pairwise and multi-genome runs; it writes fragment mappings to `<output>.visual`.
