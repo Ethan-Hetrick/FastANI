@@ -9,6 +9,7 @@ theme:
     - navigation.sections
     - navigation.expand
     - navigation.top
+    - toc.integrate
     - content.code.copy
 
 markdown_extensions:
@@ -22,4 +23,3 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Changelog: CHANGELOG.md
