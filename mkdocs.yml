@@ -1,5 +1,5 @@
 site_name: FastANI
-site_description: FastANI documentation, benchmarks, and publication materials
+site_description: FastANI docs site, benchmarks, and publication materials
 docs_dir: docs
 site_dir: site
 
