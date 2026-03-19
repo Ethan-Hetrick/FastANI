@@ -9,7 +9,19 @@ FastANI is a tool for fast, alignment-free computation of whole-genome Average N
 
 The method follows the same general ANI workflow described by [Goris et al. 2007](http://www.ncbi.nlm.nih.gov/pubmed/17220447), but avoids expensive full-sequence alignments and instead uses [Mashmap](https://github.com/marbl/MashMap) as the MinHash-based mapping engine. More details on the method, accuracy, and large-scale applications are described in "[High Throughput ANI Analysis of 90K Prokaryotic Genomes Reveals Clear Species Boundaries](https://doi.org/10.1038/s41467-018-07641-9)".
 
-## Download and compile
+## Start here
+
+- [Install FastANI](INSTALL.txt)
+- [Quick start](#quick-start)
+- [Choose a workflow](#choose-a-workflow)
+- [Reference guide](#reference-guide)
+- [Input options](#input-options)
+- [Output options](#output-options)
+- [Mapping parameters](#mapping-parameters)
+- [Execution options](#execution-options)
+- [Troubleshooting and support](#troubleshooting-and-support)
+
+## Installation
 
 Clone the repository and follow [`INSTALL.txt`](INSTALL.txt) to build the project.
 
@@ -20,115 +32,280 @@ If you are running directly from the build tree without installing, use `build/f
 
 ## Quick start
 
-Print the help page:
-
 ```sh
+# View help and version information.
 fastANI --help
-```
+fastANI --version
 
-Compute ANI for a single query genome against a single reference genome:
-
-```sh
+# Compute ANI for a single query genome against a single reference genome.
 fastANI -q QUERY_GENOME -r REFERENCE_GENOME -o output.txt
-```
 
-Compute ANI for a single query genome against many references:
-
-```sh
+# Compute ANI for a single query genome against many references.
 fastANI -q QUERY_GENOME --refList references.txt -o output.txt
-```
 
-Compute ANI for many queries against many references:
-
-```sh
+# Compute ANI for many queries against many references.
 fastANI --queryList queries.txt --refList references.txt -o output.txt
 ```
 
-Use sketch-backed querying to avoid rebuilding the reference database each time:
+## Choose a workflow
+
+Use plain query/reference inputs when:
+
+- you are running one-off analyses
+- you do not plan to reuse the same reference database repeatedly
+- you want FastANI to rebuild reference data directly from the supplied FASTA/FASTQ inputs
+
+Use sketch-backed workflows when:
+
+- you will query the same reference set repeatedly
+- reference build time matters
+- you want explicit control over RAM usage with `--batch-size`
 
 ```sh
-fastANI --refList references.txt --write-ref-sketch reference_sketch
-fastANI -q QUERY_GENOME --sketch reference_sketch -o output.txt
+# 1 vs 1
+fastANI -q query.fa -r reference.fa -o output.txt
+
+# 1 vs 1 with extended metrics
+fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt
+
+# 1 vs many
+fastANI -q query.fa --refList references.txt -o output.txt
+
+# many vs many
+fastANI --queryList queries.txt --refList references.txt -o output.txt
+
+# many vs many with matrix output
+fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
+
+# many vs many with one sparse row per reciprocal genome pair
+fastANI --queryList queries.txt --refList references.txt --average-reciprocals --header -o output.txt
 ```
 
-Use batched sketch-backed querying when RAM is limited:
-
-```sh
-fastANI -q QUERY_GENOME --sketch reference_sketch --batch-size 1 -o output.txt
-```
-
-Show the installed version:
-
-```sh
-fastANI --version
-```
-
-## Input files
-
-- `-q, --query` expects a single query genome in FASTA or FASTQ format, optionally gzip-compressed.
-- `-r, --ref` expects a single reference genome in FASTA or FASTQ format, optionally gzip-compressed.
-- `--queryList` expects a text file with one query genome path per line.
-- `--refList` expects a text file with one reference genome path per line.
-- `--sketch` expects the prefix of a previously written reference sketch database and is used instead of `--ref` or `--refList`.
-- `--write-ref-sketch` writes a reference sketch database and exits; it requires `--ref` or `--refList` and does not use query input.
-
-Gzip-compressed FASTA/FASTQ input is supported throughout the normal query and reference workflows. For heavy benchmarking or repeated runs, uncompressed inputs may be faster because they avoid repeated gzip decompression.
-
-## Parameter reference
+## Reference guide
 
 ### Input options
 
-- `-q, --query`: single query genome in FASTA/FASTQ format, optionally gzip-compressed.
-- `-r, --ref`: single reference genome in FASTA/FASTQ format, optionally gzip-compressed.
-- `--ql, --queryList`: text file listing query genome paths, one per line.
-- `--rl, --refList`: text file listing reference genome paths, one per line.
-- `--sketch`: load a previously written reference sketch prefix instead of rebuilding references from `--ref` or `--refList`.
+| Parameter           | Default | Description                                                                         | Typical use                                               |
+| ------------------- | ------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `-q, --query`       | `null`  | Single query genome in FASTA/FASTQ format, optionally gzip-compressed.              | Use for 1 vs 1 or 1 vs many runs.                         |
+| `-r, --ref`         | `null`  | Single reference genome in FASTA/FASTQ format, optionally gzip-compressed.          | Use for simple pairwise runs.                             |
+| `--ql, --queryList` | `null`  | Text file listing query genome paths, one genome per line.                          | Use for many-query runs.                                  |
+| `--rl, --refList`   | `null`  | Text file listing reference genome paths, one genome per line.                      | Use for many-reference runs or sketch creation.           |
+| `--sketch`          | `null`  | Load a previously written reference sketch prefix instead of rebuilding references. | Use for repeated querying against the same reference set. |
+
+<details>
+<summary>Example: create a line-separated reference list</summary>
+
+<pre><code class="language-sh">find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o -name '*.fa.gz' -o -name '*.fna.gz' -o -name '*.fasta.gz' \) | sort &gt; references.txt</code></pre>
+
+</details>
+
+> If genome lists are copied or created from a Windows application, run `dos2unix` on the list file first to ensure the expected line-ending format.
 
 ### Output options
 
-- `-o, --output`: write the main tabular ANI results to this file.
-- `--write-ref-sketch`: write a reference sketch database and exit. This requires `--ref` or `--refList` and does not use query input.
-- `--matrix`: also write ANI values to `<output>.matrix` as a lower-triangular PHYLIP-style matrix. This is incompatible with `--batch-size`.
-- `--visualize`: also write fragment mappings to `<output>.visual`. This works for pairwise and multi-genome runs, though the bundled plotting example is oriented toward one pair at a time.
-- `--extended-metrics`: add extra fragment-level ANI summary fields to the main tabular output only.
-- `--header`: add a header row to the main tabular output only.
+| Parameter               | Default | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                |
+| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `-o, --output`          | `null`  | Write the main tabular ANI results to this file.                                                                                                                                                                                                                                                                                          | Use for all runs.                                                                          |
+| `--write-ref-sketch`    | `false` | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                |
+| `--matrix`              | `false` | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                  |
+| `--average-reciprocals` | `false` | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
+| `--visualize`           | `false` | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                             |
+| `--extended-metrics`    | `false` | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                   |
+| `--header`              | `false` | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                         |
+
+The main output is a tab-delimited file. Each row reports:
+
+| Field                        | Description                                                                                                                            |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| Query                        | Query genome path or identifier                                                                                                        |
+| Reference                    | Reference genome path or identifier                                                                                                    |
+| ANI                          | Estimated average nucleotide identity between the genome pair                                                                          |
+| MatchedFragments             | Number of bidirectional fragment mappings supporting the ANI estimate                                                                  |
+| TotalQueryFragments          | Total number of query fragments considered for the comparison                                                                          |
+| QueryAlignmentFraction\*     | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`)                      |
+| ReferenceAlignmentFraction\* | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
+| FragID_F99\*                 | Fraction of mapped fragments with ANI at or above 99%                                                                                  |
+| FragID_Stdev\*               | Standard deviation of fragment-level ANI values                                                                                        |
+| FragID_Q1\*                  | First quartile of fragment-level ANI values                                                                                            |
+| FragID_Median\*              | Median fragment-level ANI value                                                                                                        |
+| FragID_Q3\*                  | Third quartile of fragment-level ANI values                                                                                            |
+
+> Asterisk (`*`) indicates fields that are included only when `--extended-metrics` is enabled.
+
+> When `--average-reciprocals` is enabled, `ANI` and the `FragID_*` fields become reciprocal averages when both directions are present. `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to the displayed query/reference row and are not averaged.
+
+> No ANI output is reported for genome pairs whose ANI is much lower than 80%. For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
+
+<details>
+<summary>Example: build a lower-triangular matrix from sparse output for any metric</summary>
+
+<pre><code class="language-sh"># Sparse FastANI output with a header row.
+input=fastani.tsv
+metric=ANI
+
+# Pick any numeric column name from the sparse output header, such as:
+# ANI, QueryAlignmentFraction, ReferenceAlignmentFraction, FragID_Median
+awk -F '\t' -v metric="$metric" '
+NR == 1 {
+  for (i = 1; i &lt;= NF; i++) {
+    col[$i] = i
+  }
+
+  if (!(metric in col)) {
+    printf("missing metric column: %s\n", metric) &gt; "/dev/stderr"
+    exit 1
+  }
+
+  next
+}
+{
+  q = $1
+  r = $2
+  v = $(col[metric])
+
+  if (!(q in id)) {
+    id[q] = ++n
+    name[n] = q
+  }
+
+  if (!(r in id)) {
+    id[r] = ++n
+    name[n] = r
+  }
+
+  if (id[q] &gt; id[r]) {
+    mat[id[q], id[r]] = v
+  } else if (id[r] &gt; id[q]) {
+    mat[id[r], id[q]] = v
+  }
+}
+END {
+  print n
+
+  for (i = 1; i &lt;= n; i++) {
+    printf("%s", name[i])
+    for (j = 1; j &lt; i; j++) {
+      key = i SUBSEP j
+      printf("\t%s", (key in mat ? mat[key] : "NA"))
+    }
+    printf("\n")
+  }
+}
+' "$input" &gt; metric.matrix</code></pre>
+
+</details>
+
+If you also use `--average-reciprocals`, the sparse output contains at most one row per reciprocal genome pair before you convert it into a matrix.
 
 ### Mapping parameters
 
-Warning: these parameters can change reported ANI values, hit counts, sensitivity, and runtime. Non-default settings should be treated as a different analysis configuration, not as a harmless performance tweak.
+Warning: non-default mapping parameters can change reported ANI values, hit counts, sensitivity, runtime, and sketch compatibility. Treat them as a different analysis configuration, not as harmless performance tweaks.
 
-- `-k, --kmer`: k-mer size used by the mapper. The current implementation expects values up to `16`; larger values can change sensitivity and should be used cautiously.
-- `--window-size`: manually set the minimizer window size instead of using FastANI's internally recommended value.
-- `--fragLen`: fragment length used for query fragmentation.
-- `--minFraction`: minimum shared fraction required before trusting ANI for a genome pair.
-- `--maxRatioDiff`: upper bound on the allowed difference between reference hash-density statistics used during mapping.
+Most users should leave these at their defaults unless they have validated a different setup for their workload.
 
-Guidance:
+| Parameter          | Default   | Description                                                                                                                                                                                                                                                                                                                          | Typical use                                                                                                                                                 |
+| ------------------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--window-size`    | auto      | Manually sets minimizer window size. Larger values usually reduce minimizer density and lower memory/runtime, but they can also change sensitivity and reported hits. In local benchmarking, `32` gave a noticeable runtime reduction with measurable result drift, while more aggressive values such as `36` and `48` drifted more. | Use only when you want direct control over sketching density and have validated the effect on your dataset.                                                 |
+| `--reference-size` | `5000000` | Changes the assumption used by the automatic window-size calculation. The default is a rough estimate of average bacterial genome size. Larger values usually drive larger automatically chosen windows; smaller values usually do the opposite. If `--window-size` is set manually, this parameter no longer affects sketching.     | Use when the default bacterial-genome assumption is a poor fit, such as for viruses or microbial eukaryotes, but you still want automatic window selection. |
+| `--fragLen`        | `3000`    | Changes query fragmentation.                                                                                                                                                                                                                                                                                                         | Use only after validating the sensitivity/runtime tradeoff for the dataset.                                                                                 |
+| `-k, --kmer`       | `16`      | Changes the sketching unit.                                                                                                                                                                                                                                                                                                          | Advanced tuning only; larger values can change sensitivity.                                                                                                 |
+| `--minFraction`    | `0.2`     | Changes which genome pairs are trusted and reported.                                                                                                                                                                                                                                                                                 | Use when you want stricter or looser shared-genome filtering.                                                                                               |
+| `--maxRatioDiff`   | `100.0`   | Changes reference hash-density filtering during mapping.                                                                                                                                                                                                                                                                             | Advanced debugging or workload-specific tuning.                                                                                                             |
 
-- Larger `--window-size` values reduce minimizer density, which usually lowers runtime and memory use but can change ANI estimates and which hits are reported.
-- In local benchmarking on one Shigella-against-sketch workload, `--window-size 32` reduced query runtime noticeably relative to the default sketch settings, but also changed reported results enough that it should be treated as an accuracy/sensitivity tradeoff.
-- More aggressive values such as `--window-size 36` or `48` may speed runs further, but they produced larger result drift in the same benchmark and are harder to justify without workload-specific validation.
-- Changing `--fragLen` can also affect sensitivity and reported matches; it is not only a performance knob.
-- If you care about comparability to published FastANI defaults or to earlier runs, prefer the recommended/default mapping parameters.
+#### Warning: Mapping parameters will significantly change results
+
+> Non-default mapping parameters can materially change reported ANI values, hit counts, and sketch compatibility.
+>
+> If you want to preserve the expected correlation to ANIb described in the original FastANI paper, do not change `--window-size`, `--reference-size`, `--fragLen`, or `-k/--kmer` without validating the effect on your dataset first. See [Jain et al. 2018](https://doi.org/10.1038/s41467-018-07641-9).
+
+#### Estimating `--reference-size` from a reference list
+
+<details>
+<summary>Example: estimate an average genome size for <code>--reference-size</code></summary>
+
+<pre><code class="language-sh"># Reference list with one FASTA path per line.
+ref_list=references.txt
+n=$(wc -l &lt; "$ref_list")
+
+# Count non-header sequence characters across the full list.
+total_bases=$(
+  while IFS= read -r fasta; do
+    gzip -cd "$fasta" 2&gt;/dev/null || cat "$fasta"
+  done &lt; "$ref_list" |
+    grep -v '^&gt;' |
+    tr -d '[:space:]' |
+    wc -c
+)
+
+# Convert total bases into an average genome size.
+avg_bases=$(
+  awk -v total="$total_bases" -v n="$n" 'BEGIN {print int(total / n)}'
+)
+
+printf 'average_genome_size=%s\n' "$avg_bases"</code></pre>
+
+</details>
+
+This is only an example input to `--reference-size`, not a guarantee that the resulting automatic window size will preserve default behavior.
+Using a smaller representative size is the more aggressive choice and can increase minimizer density; using a larger representative size is more conservative for memory/runtime but may reduce sensitivity.
 
 ### Execution options
 
-- `-t, --threads`: number of threads to use.
-- `--batch-size`: load sketch shards in batches during sketch-backed querying. This requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. Use `1` for the lowest memory footprint, intermediate values such as `5` to trade more RAM for better runtime, or omit it to load all shards at once.
-- `-s, --sanityCheck`: run the built-in sanity check mode.
-- `-h, --help`: print the command-line help page.
-- `-v, --version`: print the program version.
+| Parameter           | Default    | Description                                                                                                                                                                                                                                           | Typical use                                                                   |
+| ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `-t, --threads`     | `1`        | Thread count for parallel execution.                                                                                                                                                                                                                  | Increase for faster runs on multicore systems.                                |
+| `--batch-size`      | all shards | Load sketch shards in batches during sketch-backed querying; requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. A value of `1` gives the lowest peak memory usage, while omitting the option loads all shards at once. | Use when RAM is limited or when you want to tune the memory/runtime tradeoff. |
+| `-s, --sanityCheck` | `false`    | Run the built-in sanity check mode.                                                                                                                                                                                                                   | Use for debugging or internal validation.                                     |
+| `-h, --help`        | `false`    | Print the help page.                                                                                                                                                                                                                                  | Use to inspect the CLI quickly.                                               |
+| `-v, --version`     | `false`    | Show the version.                                                                                                                                                                                                                                     | Use when reporting or debugging installations.                                |
 
-Batch-size memory heuristic:
+FastANI can persist reference sketches and reuse them across runs.
+
+Build a sketch database:
+
+```sh
+fastANI --refList references.txt --write-ref-sketch reference_sketch
+```
+
+Reuse the sketch database:
+
+```sh
+fastANI --queryList queries.txt --sketch reference_sketch -o output.txt
+```
+
+This is especially useful when the same reference database is queried repeatedly.
+
+#### Sketch-backed querying with RAM control
+
+Load all sketch shards at once for the best sketch-backed runtime:
+
+```sh
+fastANI -q query.fa --sketch reference_sketch -o output.txt
+```
+
+Load one shard at a time for the lowest memory footprint:
+
+```sh
+fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt
+```
+
+Use an intermediate batch size to trade RAM for better runtime:
+
+```sh
+fastANI -q query.fa --sketch reference_sketch --batch-size 5 -o output.txt
+```
+
+#### Batch-size memory heuristic
 
 - As a rough rule of thumb, peak RAM is often close to `0.10 GiB + 2.8 x (sum of sketch shard sizes loaded together)`.
 - For balanced sketches, you can approximate this as `0.10 GiB + 2.8 x batch_size x average_shard_size`.
 - For a safer request on HPC or cloud systems, estimate from the largest shard instead of the average, then add another `20%` headroom for scheduler requests.
 
-Example command for estimating query-time memory from an existing sketch prefix:
+<details>
+<summary>Example: estimate query-time memory from a sketch prefix</summary>
 
-```sh
-# Sketch prefix and desired shard batch size.
+<pre><code class="language-sh"># Sketch prefix and desired shard batch size.
 prefix=reference_sketch
 batch=5
 
@@ -143,101 +320,65 @@ BEGIN {
 
   printf("estimated_peak_rss=%.2f GiB\n", peak)
   printf("suggested_request=%.2f GiB\n", req)
-}'
-```
+}'</code></pre>
+
+</details>
 
 This uses the largest sketch shard as a conservative sizing input and reports a safer scheduler request.
 Using the average shard size instead would be a more aggressive estimate and may underpredict memory on uneven datasets.
 
-### Compatibility notes
+#### Sketch-build memory heuristic
 
-- `--sketch` is used instead of `--ref` or `--refList`.
-- `--write-ref-sketch` requires reference input and does not use query input.
-- `--batch-size` requires `--sketch` and cannot be combined with `--matrix` or `--write-ref-sketch`.
-- `--header` and `--extended-metrics` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
-- `--visualize` works for pairwise and multi-genome runs, but the bundled `scripts/visualize.R` example is pairwise-oriented.
-- Sketches written with one `--window-size` are not interchangeable with runs using a different `--window-size`.
-- More generally, sketches should be reused only when the mapping configuration is compatible with the configuration used when the sketch was written.
+- As a rough rule of thumb for default-style sketch creation, peak RAM often grows approximately linearly with total reference sequence content.
+- A practical planning estimate is `peak_rss_gib ~= 0.5 + 7 x total_genome_gbp`.
+- For a safer HPC or cloud request, round up to about `requested_ram_gib ~= 1 + 9 x total_genome_gbp`.
+- This is only a heuristic: actual memory use depends on the dataset, repetitiveness, contig structure, and mapping parameters such as `--window-size`.
 
-## Common workflows
+<details>
+<summary>Example: estimate sketch-build memory from a FASTA <code>--refList</code></summary>
 
-### 1 vs 1 with extended metrics
+<pre><code class="language-sh"># Text file containing one reference FASTA path per line.
+ref_list=references.txt
 
-```sh
-fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt
-```
+# Count non-header sequence characters across all references.
+bases=$(
+  while read -r f; do
+    gzip -cd "$f" 2&gt;/dev/null || cat "$f"
+  done &lt; "$ref_list" |
+  grep -v '^&gt;' |
+  tr -d '[:space:]' |
+  wc -c
+)
 
-### 1 vs all from a prebuilt sketch
+# Convert total bases into a conservative sketch-build request.
+awk -v b="$bases" '
+BEGIN {
+  gbp = b / 1e9
+  req = 1 + 9 * gbp
 
-```sh
-fastANI -q query.fa --sketch reference_sketch -o output.txt
-```
+  printf("total_bases=%d (%.3f Gbp)\n", b, gbp)
+  printf("suggested_request=%.2f GiB\n", req)
+}'</code></pre>
 
-### 1 vs all from a prebuilt sketch with visualization output
+</details>
 
-```sh
-fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt
-```
+This estimates total genomic content by removing FASTA header lines, stripping whitespace, and counting sequence characters, then converts that total into a conservative memory request.
+This request formula is intentionally conservative; a more aggressive estimate would use the lower `0.5 + 7 x total_genome_gbp` rule of thumb instead.
 
-### 1 vs all from a prebuilt sketch with controlled shard batching
+### Output files
 
-```sh
-fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt
-```
+The main tabular fields are documented under [Output options](#output-options).
 
-Notes:
+Sidecar outputs:
 
-- `--batch-size` is available only with `--sketch`.
-- `--batch-size` is incompatible with `--matrix` and `--write-ref-sketch`.
-- `--batch-size 1` gives the lowest peak memory usage by loading one sketch shard at a time.
-- Larger values such as `--batch-size 5` reduce the batching overhead and are often a better choice when you have moderate memory available.
-- Omitting `--batch-size` loads all sketch shards at once and gives the best sketch-backed runtime when memory is not a bottleneck.
-- `--batch-size` should be at most the number of sketch shards available for the run; values above that behave like loading all shards.
-- `--window-size` sets the minimizer window size manually instead of using FastANI's internally recommended value.
-- Larger `--window-size` values generally reduce minimizer density and can speed up runs at the cost of sensitivity.
-- Non-default mapping parameters, especially `--window-size`, can change reported ANI values and which hits appear in the output.
-- `--visualize` can be used in pairwise and multi-genome runs; it writes fragment mappings to `<output>.visual`.
-- The bundled `scripts/visualize.R` example is intended for pairwise plotting, even though `.visual` output can contain multiple genome pairs.
+- `--matrix` writes `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).
+- `--visualize` writes `<output>.visual` with fragment-level mappings for each reported query/reference comparison.
 
-### All vs all with matrix output
-
-```sh
-fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
-```
-
-## Output
-
-The main output is a tab-delimited file. Each row reports:
-
-1. query genome
-2. reference genome
-3. ANI estimate
-4. number of bidirectional fragment mappings
-5. total query fragments
-
-Alignment fraction with respect to the query genome can be estimated as:
-
-```text
-bidirectional fragment mappings / total query fragments
-```
-
-If `--header` is used, the tabular output includes a header row.
-It does not change the `.matrix` or `.visual` sidecar files.
-
-If `--extended-metrics` is used, the output includes additional fragment-level ANI summary fields.
-These additional fields are added only to the main tabular output.
-
-If `--matrix` is used, FastANI also writes a second file with the `.matrix` extension containing ANI values arranged as a [phylip-formatted lower triangular matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).
-
-If `--visualize` is used, FastANI also writes a `.visual` file containing fragment-level mappings for each reported query/reference comparison.
-
-No ANI output is reported for genome pairs whose ANI is much lower than 80%. For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
+If you use `--average-reciprocals`, the main sparse output is symmetrized across reciprocal rows, but the `.matrix` and `.visual` sidecar files keep their existing behavior.
 
 ## Example run
 
 Two small test genomes are available under [`tests/data`](tests/data).
-
-Example:
 
 ```sh
 fastANI \
@@ -253,68 +394,6 @@ tests/data/Shigella_flexneri_2a_01.fna	tests/data/Escherichia_coli_str_K12_MG165
 ```
 
 This means the ANI estimate between the two genomes is `97.7507`, with `1303` reciprocal fragment mappings out of `1608` total query fragments.
-
-## Sketch databases
-
-FastANI can persist reference sketches and reuse them across runs.
-
-Write a sketch database:
-
-```sh
-fastANI --refList references.txt --write-ref-sketch reference_sketch
-```
-
-Reuse the sketch database:
-
-```sh
-fastANI --queryList queries.txt --sketch reference_sketch -o output.txt
-```
-
-This is especially useful when the same reference database is queried repeatedly.
-
-Sketch-build memory heuristic:
-
-- As a rough rule of thumb for default-style sketch creation, peak RAM often grows approximately linearly with total reference sequence content.
-- A practical planning estimate is `peak_rss_gib ~= 0.5 + 7 x total_genome_gbp`.
-- For a safer HPC or cloud request, round up to about `requested_ram_gib ~= 1 + 9 x total_genome_gbp`.
-- This is only a heuristic: actual memory use depends on the dataset, repetitiveness, contig structure, and mapping parameters such as `--window-size`.
-
-Example command for estimating sketch-build memory from a FASTA `--refList`:
-
-```sh
-# Text file containing one reference FASTA path per line.
-ref_list=references.txt
-
-# Count non-header sequence characters across all references.
-bases=$(
-  while read -r f; do
-    gzip -cd "$f" 2>/dev/null || cat "$f"
-  done < "$ref_list" |
-  grep -v '^>' |
-  tr -d '[:space:]' |
-  wc -c
-)
-
-# Convert total bases into a conservative sketch-build request.
-awk -v b="$bases" '
-BEGIN {
-  gbp = b / 1e9
-  req = 1 + 9 * gbp
-
-  printf("total_bases=%d (%.3f Gbp)\n", b, gbp)
-  printf("suggested_request=%.2f GiB\n", req)
-}'
-```
-
-This estimates total genomic content by removing FASTA header lines, stripping whitespace, and counting sequence characters, then converts that total into a conservative memory request.
-This request formula is intentionally conservative; a more aggressive estimate would use the lower `0.5 + 7 x total_genome_gbp` rule of thumb instead.
-
-Compatibility notes:
-
-- When `--sketch` is used, reference sketches are loaded from disk instead of rebuilding them from `--ref` or `--refList`.
-- `--batch-size` is only meaningful for sketch-backed querying and cannot be combined with `--matrix` or `--write-ref-sketch`.
-- `--window-size` changes the sketching parameters, so sketch files written with one window size are not interchangeable with runs using a different window size.
-- Changing mapping parameters can change results, so sketch-backed runs should only be compared directly when they use compatible sketch and mapping settings.
 
 ## Visualization of conserved regions
 
@@ -343,7 +422,28 @@ FastANI supports multi-threading via `-t, --threads`.
 
 For even larger workloads, users can also divide a large reference database into chunks and run multiple FastANI processes in parallel. The repository includes helper scripts for splitting databases for that purpose.
 
-## Known behavior
+### Compatibility notes
+
+Only options with limited interoperability are listed here. `✓` means the combination is supported. `X` means the combination is incompatible or not applicable.
+
+| Option                | `--ref` / `--refList` | `--sketch` | `--write-ref-sketch` | `--batch-size` | `--matrix` |
+| --------------------- | --------------------- | ---------- | -------------------- | -------------- | ---------- |
+| `--ref` / `--refList` | ✓                     | X          | ✓                    | X              | ✓          |
+| `--sketch`            | X                     | ✓          | X                    | ✓              | ✓          |
+| `--write-ref-sketch`  | ✓                     | X          | ✓                    | X              | ✓          |
+| `--batch-size`        | X                     | ✓          | X                    | ✓              | X          |
+| `--matrix`            | ✓                     | ✓          | ✓                    | X              | ✓          |
+
+Additional compatibility details:
+
+- `--write-ref-sketch` requires reference input and does not use query input.
+- `--header`, `--extended-metrics`, and `--average-reciprocals` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
+- `--visualize` works for pairwise and multi-genome runs, but the bundled `scripts/visualize.R` example is pairwise-oriented.
+- Sketches written with one `--window-size` are not interchangeable with runs using a different `--window-size`.
+- Non-default `--reference-size` values can change the automatically chosen `--window-size`, so they can also change sketch compatibility and output behavior.
+- More generally, sketches should be reused only when the mapping configuration is compatible with the configuration used when the sketch was written.
+
+## Troubleshooting
 
 ### Asymmetry in ANI computation
 
@@ -351,10 +451,37 @@ FastANI can report slightly different ANI values for a genome pair `(A, B)` depe
 
 In practice, this difference is usually small. When `--matrix` output is requested, FastANI reports a single value per genome pair corresponding to the average of both directions.
 
-## Quality guidance
+If you want a sparse tabular output with one row per reciprocal genome pair, use `--average-reciprocals`. It averages `ANI` and the `FragID_*` fragment-summary fields across the two directions, while keeping `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` tied to the displayed query/reference orientation.
+
+### Input quality guidance
 
 Input quality matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
 
-## Troubleshooting and support
+### Out-of-memory errors
+
+If a sketch-backed query runs out of memory, rerun it with `--batch-size` to limit how many sketch shards are loaded at once.
+
+- `--batch-size 1` gives the lowest memory footprint.
+- Intermediate values such as `--batch-size 5` trade more RAM for better runtime.
+- Omitting `--batch-size` loads all sketch shards at once and uses the most memory.
+
+If you do not need the `.matrix` sidecar, combining sparse output with `--average-reciprocals` is often a more flexible way to produce one row per genome pair before downstream reshaping.
+
+### Reproducibility guidance
+
+If you need results that are stable across reruns, operators, or validation cycles, treat the FastANI configuration and reference database as versioned analysis inputs.
+
+- Keep mapping parameters fixed. Changing `--window-size`, `--reference-size`, `--fragLen`, or `-k/--kmer` can change reported ANI values, hit counts, and sketch compatibility.
+- Use `--average-reciprocals` consistently. It changes the sparse output schema from directional rows to one averaged reciprocal row per pair when both directions are present, and it averages `ANI` plus the `FragID_*` fields while leaving count and alignment-fraction columns directional to the displayed row.
+- Save reference lists and sketches together. A sketch should be reused only with the same compatible mapping configuration that was used to create it.
+- Make saved sketches read-only after creation to avoid accidental modification, for example: `chmod a-w reference_sketch.*`
+- Record the exact `fastANI --version`, command line, reference list, and output mode (`--matrix`, `--extended-metrics`, `--average-reciprocals`) alongside released results.
+- Prefer `--batch-size` over mapping-parameter changes when the goal is only to reduce RAM usage. `--batch-size` changes how sketch shards are loaded, not the mapping configuration itself.
+- Keep the primary sparse output. Derived `.matrix` files or downstream reshaped matrices are useful, but the sparse table is the most explicit record of what FastANI reported.
+- Quality-check assemblies before analysis. Poorly assembled inputs can weaken ANI estimates and complicate downstream interpretation.
+
+For validated laboratory workflows, it is a good idea to freeze the full FastANI configuration, reference set, and sketch artifacts for each analysis release and treat any change to those inputs as a revalidation event.
+
+## Support
 
 Bug reports, feature requests, and general feedback are welcome through the [GitHub issue tracker](https://github.com/ParBLiSS/FastANI/issues).

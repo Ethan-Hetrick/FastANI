@@ -4,9 +4,7 @@ run-name: Build FastANI with CMake and Test by ${{github.actor}}
 
 on:
   push:
-    branches: ["master"]
   pull_request:
-    branches: ["master"]
 
   # Allows to run this workflow from the Actions tab (w.o. trigger)
   workflow_dispatch:
@@ -22,10 +20,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
         with:
           submodules: recursive
           lfs: true
+          fetch-depth: 0
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "20"
       - name: Patch Catch2 cstdint includes
         run: |
           python3 - <<'PY'
@@ -58,15 +61,21 @@ jobs:
               lines.insert(insert_at, include)
               path.write_text("".join(lines))
           PY
-      - name: Install zlib, gsl, cppcheck and lcov
+      - name: Install zlib, gsl, cppcheck, lcov, and clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install zlib1g-dev libgsl-dev cppcheck lcov
+          sudo apt-get install zlib1g-dev libgsl-dev cppcheck lcov clang-format
+      - name: Install Prettier
+        run: npm install --global prettier
+      - name: Check documentation and workflow formatting
+        run: scripts/precommit_run_prettier.sh
+      - name: Check C/C++ formatting
+        run: scripts/precommit_check_clang_format.sh
       # Static Analysis with cppcheck
       - name: cppcheck
         run: cppcheck --enable=all --inconclusive --force --std=c++20 -iext/ -I src/ --output-file=cppcheck_report.txt .
       - name: Upload CPPCheck Report as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: CPPCheck-Report
           path: ${{github.workspace}}/cppcheck_report.txt
@@ -99,14 +108,14 @@ jobs:
           verbose: true
       # Uploading to Github Action as artifact
       - name: Upload Coverage Summary as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Coverage-Summary
           path: ${{github.workspace}}/build/coverage_list.txt
           retention-days: 5
       - name: Upload CTest failure logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: CTest-Logs
           path: |

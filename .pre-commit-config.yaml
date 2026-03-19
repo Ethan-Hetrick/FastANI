@@ -1,0 +1,55 @@
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+
+repos:
+  - repo: local
+    hooks:
+      - id: fastani-trailing-whitespace
+        name: Fix trailing whitespace
+        entry: scripts/precommit_fix_trailing_whitespace.sh
+        language: system
+        types:
+          - text
+        stages:
+          - pre-commit
+      - id: fastani-end-of-file-fixer
+        name: Fix end of file newlines
+        entry: scripts/precommit_fix_end_of_file.sh
+        language: system
+        types:
+          - text
+        stages:
+          - pre-commit
+      - id: fastani-prettier
+        name: Run Prettier on docs and workflow files
+        entry: scripts/precommit_run_prettier.sh
+        language: system
+        files: \.(md|ya?ml)$
+        args:
+          - --check
+        stages:
+          - pre-commit
+          - pre-push
+      - id: fastani-clang-format
+        name: Check C/C++ formatting with clang-format
+        entry: scripts/precommit_check_clang_format.sh
+        language: system
+        files: \.(c|cc|cpp|cxx|h|hpp)$
+        stages:
+          - pre-commit
+          - pre-push
+      - id: fastani-compile
+        name: Build fastANI (Release)
+        entry: scripts/precommit_build_fastani.sh
+        language: system
+        pass_filenames: false
+        stages:
+          - pre-push
+      - id: fastani-docs
+        name: Build MkDocs site
+        entry: scripts/precommit_build_docs.sh
+        language: system
+        pass_filenames: false
+        stages:
+          - pre-push
