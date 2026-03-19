@@ -6,14 +6,30 @@ FastANI is a tool for fast, alignment-free computation of whole-genome Average N
 This docs site is maintained separately from the GitHub-facing repository `README.md`.
 The README stays optimized for repository browsing, while this homepage can use MkDocs features such as admonitions and richer navigation.
 
-## Section index
+## Contents
 
-- [Start Here](#start-here)
-- [Installation](#installation)
-- [What FastANI Supports](#what-fastani-supports)
-- [Common Workflows](#common-workflows)
-- [Practical Notes](#practical-notes)
-- [Related Docs](#related-docs)
+### Jump to a section on this page
+
+| Section                                         | What it covers                                  |
+| ----------------------------------------------- | ----------------------------------------------- |
+| [Start Here](#start-here)                       | The main entry points into the docs set         |
+| [Installation](#installation)                   | Build and install guidance                      |
+| [What FastANI Supports](#what-fastani-supports) | Core capabilities and important warnings        |
+| [Common Workflows](#common-workflows)           | Canonical command examples                      |
+| [Practical Notes](#practical-notes)             | Quick operational tips                          |
+| [Related Docs](#related-docs)                   | Benchmark, changelog, and publication materials |
+
+### Jump to another documentation page
+
+| Page                                                  | Use it for                                          |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| [Installation guide](install.md)                      | Building FastANI and verifying the CLI              |
+| [Benchmark overview](benchmark/index.md)              | Benchmark scope, methods, and supporting files      |
+| [Benchmark commands](benchmark/BENCHMARK_COMMANDS.md) | Reproducing benchmark runs directly                 |
+| [Publication overview](pub/index.md)                  | Publication-facing figures and manuscript materials |
+| [Publication draft](pub/pub_draft.md)                 | JOSS-style draft manuscript                         |
+| [Fork changelog](CHANGELOG.md)                        | Technical change history since the fork             |
+| [Reference material](references/index.md)             | Local papers and supporting references              |
 
 ## Start Here
 
