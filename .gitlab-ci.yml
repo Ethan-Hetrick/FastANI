@@ -17,6 +17,10 @@ docs:
   stage: docs
   script:
     - cp README.md docs/index.md
+    - cp INSTALL.txt docs/INSTALL.txt
+    - cp LICENSE docs/LICENSE
+    - mkdir -p docs/tests
+    - cp -r tests/data docs/tests/data
     - mkdocs build --strict
   artifacts:
     paths:
@@ -30,6 +34,10 @@ pages:
   stage: docs
   script:
     - cp README.md docs/index.md
+    - cp INSTALL.txt docs/INSTALL.txt
+    - cp LICENSE docs/LICENSE
+    - mkdir -p docs/tests
+    - cp -r tests/data docs/tests/data
     - mkdocs build --strict
     - mv site public
   artifacts:

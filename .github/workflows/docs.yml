@@ -33,7 +33,12 @@ jobs:
         run: pip install -r requirements-docs.txt
 
       - name: Use README as the docs homepage
-        run: cp README.md docs/index.md
+        run: |
+          cp README.md docs/index.md
+          cp INSTALL.txt docs/INSTALL.txt
+          cp LICENSE docs/LICENSE
+          mkdir -p docs/tests
+          cp -r tests/data docs/tests/data
 
       - name: Build MkDocs site
         run: mkdocs build --strict
