@@ -26,6 +26,18 @@ jobs:
         with:
           submodules: recursive
           lfs: true
+      - name: Patch Catch2 compatibility header
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("ext/Catch2/src/catch2/internal/catch_string_manip.hpp")
+          text = path.read_text()
+          include = "#include <cstdint>\n"
+          anchor = "#include <catch2/internal/catch_stringref.hpp>\n\n"
+          if include not in text:
+              path.write_text(text.replace(anchor, anchor + include, 1))
+          PY
       - name: Install zlib, gsl, cppcheck and lcov
         run: |
           sudo apt-get update
