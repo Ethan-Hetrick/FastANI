@@ -1,5 +1,5 @@
 site_name: FastANI
-site_description: FastANI docs site, benchmarks, and publication materials
+site_description: FastANI documentation
 docs_dir: docs
 site_dir: site
 
@@ -22,14 +22,4 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Installation: install.md
   - Changelog: CHANGELOG.md
-  - Benchmark:
-      - Overview: benchmark/index.md
-      - Session Context: benchmark/FUTURE_SESSION_CONTEXT.md
-      - Commands: benchmark/BENCHMARK_COMMANDS.md
-  - Publication:
-      - Overview: pub/index.md
-      - Draft: pub/pub_draft.md
-  - References:
-      - Overview: references/index.md

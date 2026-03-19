@@ -36,13 +36,7 @@ jobs:
         run: pip install -r requirements-docs.txt
 
       - name: Prepare documentation assets
-        run: |
-          cp INSTALL.txt docs/INSTALL.txt
-          cp LICENSE docs/LICENSE
-          mkdir -p docs/images
-          cp -r images/. docs/images/
-          mkdir -p docs/tests
-          cp -r tests/data docs/tests/data
+        run: scripts/prepare_docs_site.sh
 
       - name: Build MkDocs site
         run: mkdocs build --strict

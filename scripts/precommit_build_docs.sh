@@ -14,4 +14,6 @@ if [[ -z "$mkdocs_bin" ]]; then
   exit 1
 fi
 
+scripts/prepare_docs_site.sh
+
 "$mkdocs_bin" build --strict
