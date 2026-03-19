@@ -26,27 +26,37 @@ jobs:
         with:
           submodules: recursive
           lfs: true
-      - name: Patch Catch2 compatibility header
+      - name: Patch Catch2 cstdint includes
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          patches = [
-              (
-                  Path("ext/Catch2/src/catch2/internal/catch_string_manip.hpp"),
-                  "#include <catch2/internal/catch_stringref.hpp>\n\n",
-              ),
-              (
-                  Path("ext/Catch2/src/catch2/catch_test_case_info.hpp"),
-                  "#include <catch2/internal/catch_unique_ptr.hpp>\n\n\n",
-              ),
-          ]
+          root = Path("ext/Catch2/src/catch2")
           include = "#include <cstdint>\n"
+          fixed_width = re.compile(
+              r"\b(?:std::)?u?int(?:8|16|32|64)_t\b"
+          )
 
-          for path, anchor in patches:
+          for path in root.rglob("*"):
+              if path.suffix not in {".hpp", ".cpp", ".h", ".cxx", ".ipp"}:
+                  continue
+
               text = path.read_text()
-              if include not in text:
-                  path.write_text(text.replace(anchor, anchor + include, 1))
+              if include in text or "<stdint.h>" in text or not fixed_width.search(text):
+                  continue
+
+              lines = text.splitlines(keepends=True)
+              insert_at = None
+              for idx, line in enumerate(lines):
+                  if line.startswith("#include "):
+                      insert_at = idx + 1
+
+              if insert_at is None:
+                  raise RuntimeError(f"No include block found in {path}")
+
+              lines.insert(insert_at, include)
+              path.write_text("".join(lines))
           PY
       - name: Install zlib, gsl, cppcheck and lcov
         run: |
