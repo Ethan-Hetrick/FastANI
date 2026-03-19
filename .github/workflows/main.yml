@@ -86,13 +86,16 @@ jobs:
         working-directory: ${{github.workspace}}/build
         run: make lcov2
       # Uploading to Codecov
+      - name: Note skipped Codecov upload
+        if: ${{ secrets.CODECOV_TOKEN == '' }}
+        run: echo "CODECOV_TOKEN is not configured for this workflow context; skipping Codecov upload."
       - name: Upload coverage reports to codecov.io
-        uses: codecov/codecov-action@v3
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: ${{github.workspace}}/build
           files: ${{github.workspace}}/build/coverage.info
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           verbose: true
       # Uploading to Github Action as artifact
       - name: Upload Coverage Summary as artifact
