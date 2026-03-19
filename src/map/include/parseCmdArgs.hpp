@@ -161,6 +161,9 @@ namespace skch
       (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile))
       % "write reference sketches to file and exit; requires --ref/--refList and does not use query input";
     auto matrix_cmd = clipp::option("--matrix").set(parameters.matrixOutput).doc("also write ANI values as a lower triangular matrix to <output>.matrix; this affects matrix output only and is incompatible with --batch-size [disabled by default]");
+    auto average_reciprocals_cmd =
+      clipp::option("--average-reciprocals").set(parameters.averageReciprocals)
+      .doc("average ANI and fragment-level ANI summary metrics across reciprocal pairs in the main sparse tabular output; keeps the displayed query/reference orientation of the emitted row");
     auto visualize_cmd = clipp::option("--visualize").set(parameters.visualize).doc("also write fragment mappings to <output>.visual for downstream visualization; valid for pairwise and multi-genome runs, but the bundled R plotting example is pairwise-oriented [disabled by default]");
     auto extended_metrics_cmd =
       clipp::option("--extended-metrics").set(parameters.extendedMetrics)
@@ -204,6 +207,7 @@ namespace skch
        output_cmd,
        write_ref_sketch_cmd,
        matrix_cmd,
+       average_reciprocals_cmd,
        visualize_cmd,
        extended_metrics_cmd,
        header_cmd
@@ -242,7 +246,7 @@ namespace skch
       .doc_column(5)
       .last_column(80);
 
-    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\n1 vs all comparison using a sketch with one shard loaded at a time:\n$ fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt\n\nAll vs all comparison with query list, reference list, matrix output, and visualization mappings:\n$ fastANI --queryList queries.txt --refList references.txt --matrix --visualize -o output.txt";
+    std::string description = "\nfastANI is a fast alignment-free implementation for computing whole-genome Average Nucleotide Identity (ANI) between genomes\n\nEXAMPLE USAGE\n-------------\n1 vs 1 comparison with extended metrics:\n$ fastANI -q query.fa -r reference.fa --extended-metrics -o output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o output.txt\n\n1 vs all comparison using a sketch with one shard loaded at a time:\n$ fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt\n\nAll vs all comparison with query list, reference list, averaged reciprocals, and visualization mappings:\n$ fastANI --queryList queries.txt --refList references.txt --average-reciprocals --visualize -o output.txt";
 
     auto printHelp = [&]() {
       auto man = clipp::man_page{}

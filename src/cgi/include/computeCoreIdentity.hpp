@@ -242,6 +242,120 @@ namespace cgi
   
     return static_cast<float>(std::sqrt(sumSq / vals.size()));
   }
+
+  struct NamedCGIResult
+  {
+    CGI_Results result;
+    std::string qryGenome;
+    std::string refGenome;
+    std::string pairLo;
+    std::string pairHi;
+  };
+
+  inline CGI_Results averageReciprocalSummary(
+      const CGI_Results &canonical,
+      const CGI_Results &other,
+      bool extendedMetrics)
+  {
+    CGI_Results averaged = canonical;
+    averaged.identity = (canonical.identity + other.identity) / 2.0f;
+
+    if(extendedMetrics)
+    {
+      averaged.frac99 = (canonical.frac99 + other.frac99) / 2.0f;
+      averaged.sdAni = (canonical.sdAni + other.sdAni) / 2.0f;
+      averaged.q1Ani = (canonical.q1Ani + other.q1Ani) / 2.0f;
+      averaged.medianAni = (canonical.medianAni + other.medianAni) / 2.0f;
+      averaged.q3Ani = (canonical.q3Ani + other.q3Ani) / 2.0f;
+    }
+
+    return averaged;
+  }
+
+  inline std::vector<CGI_Results> averageReciprocalResults(
+      skch::Parameters &parameters,
+      const std::vector<CGI_Results> &results)
+  {
+    std::vector<NamedCGIResult> namedResults;
+    namedResults.reserve(results.size());
+
+    for(const auto &e : results)
+    {
+      std::string qryGenome = parameters.querySequences[e.qryGenomeId];
+      std::string refGenome = parameters.refSequences[e.refGenomeId];
+
+      namedResults.push_back(
+          NamedCGIResult{
+              e,
+              qryGenome,
+              refGenome,
+              std::min(qryGenome, refGenome),
+              std::max(qryGenome, refGenome)});
+    }
+
+    std::stable_sort(
+        namedResults.begin(),
+        namedResults.end(),
+        [](const NamedCGIResult &x, const NamedCGIResult &y)
+        {
+          return std::tie(
+                     x.pairLo,
+                     x.pairHi,
+                     x.qryGenome,
+                     x.refGenome,
+                     x.result.qryGenomeId,
+                     x.result.refGenomeId)
+              < std::tie(
+                     y.pairLo,
+                     y.pairHi,
+                     y.qryGenome,
+                     y.refGenome,
+                     y.result.qryGenomeId,
+                     y.result.refGenomeId);
+        });
+
+    std::vector<CGI_Results> averagedResults;
+    averagedResults.reserve(namedResults.size());
+
+    for(size_t i = 0; i < namedResults.size();)
+    {
+      size_t j = i + 1;
+
+      while(j < namedResults.size()
+            && namedResults[j].pairLo == namedResults[i].pairLo
+            && namedResults[j].pairHi == namedResults[i].pairHi)
+      {
+        j++;
+      }
+
+      bool isSimpleReciprocalPair =
+          (j - i == 2)
+          && namedResults[i].qryGenome == namedResults[i + 1].refGenome
+          && namedResults[i].refGenome == namedResults[i + 1].qryGenome;
+
+      if(isSimpleReciprocalPair)
+      {
+        const NamedCGIResult &first = namedResults[i];
+        const NamedCGIResult &second = namedResults[i + 1];
+        bool firstIsCanonical = first.qryGenome <= first.refGenome;
+        const CGI_Results &canonical = firstIsCanonical ? first.result : second.result;
+        const CGI_Results &other = firstIsCanonical ? second.result : first.result;
+
+        averagedResults.push_back(
+            averageReciprocalSummary(canonical, other, parameters.extendedMetrics));
+      }
+      else
+      {
+        for(size_t k = i; k < j; k++)
+          averagedResults.push_back(namedResults[k].result);
+      }
+
+      i = j;
+    }
+
+    return averagedResults;
+  }
+
   void computeCGI(skch::Parameters &parameters,
       skch::MappingResultsVector_t &results,
       skch::Map &mapper,
@@ -410,8 +524,13 @@ namespace cgi
       std::vector<cgi::CGI_Results> &CGI_ResultsVector,
       std::string &fileName)
   {
+    std::vector<cgi::CGI_Results> outputResults =
+      parameters.averageReciprocals
+      ? averageReciprocalResults(parameters, CGI_ResultsVector)
+      : CGI_ResultsVector;
+
     //sort result by identity
-    std::sort(CGI_ResultsVector.rbegin(), CGI_ResultsVector.rend());
+    std::sort(outputResults.rbegin(), outputResults.rend());
 
     std::ofstream outstrm(fileName);
 
@@ -438,7 +557,7 @@ namespace cgi
     }
 
     //Report results
-    for(auto &e : CGI_ResultsVector)
+    for(auto &e : outputResults)
     {
       std::string qryGenome = parameters.querySequences[e.qryGenomeId];
       std::string refGenome = parameters.refSequences[e.refGenomeId];

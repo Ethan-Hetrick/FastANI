@@ -74,6 +74,9 @@ fastANI --queryList queries.txt --refList references.txt -o output.txt
 
 # many vs many with matrix output
 fastANI --queryList queries.txt --refList references.txt --matrix -o output.txt
+
+# many vs many with one sparse row per reciprocal genome pair
+fastANI --queryList queries.txt --refList references.txt --average-reciprocals --header -o output.txt
 ```
 
 ## Reference guide
@@ -109,6 +112,7 @@ find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o 
 | `-o, --output` | `null` | Write the main tabular ANI results to this file. | Use for all runs. |
 | `--write-ref-sketch` | `false` | Write a reference sketch database and exit. Requires `--ref` or `--refList`. | Use before repeated sketch-backed querying. |
 | `--matrix` | `false` | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix). | Use for all-vs-all matrix-style analyses. |
+| `--average-reciprocals` | `false` | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
 | `--visualize` | `false` | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison. | Use when plotting conserved regions for selected genome pairs. |
 | `--extended-metrics` | `false` | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries. | Use when you want more detailed fragment summary fields. |
 | `--header` | `false` | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files. | Use for easier downstream parsing. |
@@ -132,7 +136,72 @@ The main output is a tab-delimited file. Each row reports:
 
 > Asterisk (`*`) indicates fields that are included only when `--extended-metrics` is enabled.
 
+> When `--average-reciprocals` is enabled, `ANI` and the `FragID_*` fields become reciprocal averages when both directions are present. `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to the displayed query/reference row and are not averaged.
+
 > No ANI output is reported for genome pairs whose ANI is much lower than 80%. For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
+
+<details>
+<summary>Example: build a lower-triangular matrix from sparse output for any metric</summary>
+
+```sh
+# Sparse FastANI output with a header row.
+input=fastani.tsv
+metric=ANI
+
+# Pick any numeric column name from the sparse output header, such as:
+# ANI, QueryAlignmentFraction, ReferenceAlignmentFraction, FragID_Median
+awk -F '\t' -v metric="$metric" '
+NR == 1 {
+  for (i = 1; i <= NF; i++) {
+    col[$i] = i
+  }
+
+  if (!(metric in col)) {
+    printf("missing metric column: %s\n", metric) > "/dev/stderr"
+    exit 1
+  }
+
+  next
+}
+{
+  q = $1
+  r = $2
+  v = $(col[metric])
+
+  if (!(q in id)) {
+    id[q] = ++n
+    name[n] = q
+  }
+
+  if (!(r in id)) {
+    id[r] = ++n
+    name[n] = r
+  }
+
+  if (id[q] > id[r]) {
+    mat[id[q], id[r]] = v
+  } else if (id[r] > id[q]) {
+    mat[id[r], id[q]] = v
+  }
+}
+END {
+  print n
+
+  for (i = 1; i <= n; i++) {
+    printf("%s", name[i])
+    for (j = 1; j < i; j++) {
+      key = i SUBSEP j
+      printf("\t%s", (key in mat ? mat[key] : "NA"))
+    }
+    printf("\n")
+  }
+}
+' "$input" > metric.matrix
+```
+
+</details>
+
+If you also use `--average-reciprocals`, the sparse output contains at most one row per reciprocal genome pair before you convert it into a matrix.
 
 ### Mapping parameters
 
@@ -309,39 +378,14 @@ This request formula is intentionally conservative; a more aggressive estimate w
 
 ### Output files
 
-The main output is a tab-delimited file. Each row reports:
+The main tabular fields are documented under [Output options](#output-options).
 
-1. query genome: path or identifier for the query assembly
-2. reference genome: path or identifier for the reference assembly
-3. ANI estimate: estimated average nucleotide identity between the genome pair
-4. number of bidirectional fragment mappings: reciprocal fragment matches supporting the ANI estimate
-5. total query fragments: total number of query fragments considered for the comparison
-6. `Frac99`*: fraction of mapped fragments with ANI at or above 99%
-7. `SdANI`*: standard deviation of fragment-level ANI values
-8. `Q1`*: first quartile of fragment-level ANI values
-9. `Median`*: median fragment-level ANI value
-10. `Q3`*: third quartile of fragment-level ANI values
+Sidecar outputs:
 
-\* These fields are included only when `--extended-metrics` is enabled.
+- `--matrix` writes `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).
+- `--visualize` writes `<output>.visual` with fragment-level mappings for each reported query/reference comparison.
 
-Alignment fraction with respect to the query genome can be estimated as:
-
-```text
-bidirectional fragment mappings / total query fragments
-```
-
-If `--header` is used, the tabular output includes a header row.
-It does not change the `.matrix` or `.visual` sidecar files.
-
-If `--extended-metrics` is used, the output includes additional fragment-level ANI summary fields.
-These additional fields are added only to the main tabular output.
-
-If `--matrix` is used, FastANI also writes a second file with the `.matrix` extension containing ANI values arranged as a [phylip-formatted lower triangular matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).
-
-If `--visualize` is used, FastANI also writes a `.visual` file containing fragment-level mappings for each reported query/reference comparison.
-
-No ANI output is reported for genome pairs whose ANI is much lower than 80%.
-For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
+If you use `--average-reciprocals`, the main sparse output is symmetrized across reciprocal rows, but the `.matrix` and `.visual` sidecar files keep their existing behavior.
 
 ## Example run
 
@@ -404,7 +448,7 @@ Only options with limited interoperability are listed here. `✓` means the comb
 Additional compatibility details:
 
 - `--write-ref-sketch` requires reference input and does not use query input.
-- `--header` and `--extended-metrics` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
+- `--header`, `--extended-metrics`, and `--average-reciprocals` affect only the main tabular output, not `.matrix` or `.visual` sidecar files.
 - `--visualize` works for pairwise and multi-genome runs, but the bundled `scripts/visualize.R` example is pairwise-oriented.
 - Sketches written with one `--window-size` are not interchangeable with runs using a different `--window-size`.
 - Non-default `--reference-size` values can change the automatically chosen `--window-size`, so they can also change sketch compatibility and output behavior.
@@ -418,6 +462,8 @@ FastANI can report slightly different ANI values for a genome pair `(A, B)` depe
 
 In practice, this difference is usually small. When `--matrix` output is requested, FastANI reports a single value per genome pair corresponding to the average of both directions.
 
+If you want a sparse tabular output with one row per reciprocal genome pair, use `--average-reciprocals`. It averages `ANI` and the `FragID_*` fragment-summary fields across the two directions, while keeping `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` tied to the displayed query/reference orientation.
+
 ### Input quality guidance
 
 Input quality matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
@@ -429,6 +475,23 @@ If a sketch-backed query runs out of memory, rerun it with `--batch-size` to lim
 - `--batch-size 1` gives the lowest memory footprint.
 - Intermediate values such as `--batch-size 5` trade more RAM for better runtime.
 - Omitting `--batch-size` loads all sketch shards at once and uses the most memory.
+
+If you do not need the `.matrix` sidecar, combining sparse output with `--average-reciprocals` is often a more flexible way to produce one row per genome pair before downstream reshaping.
+
+### Reproducibility guidance
+
+If you need results that are stable across reruns, operators, or validation cycles, treat the FastANI configuration and reference database as versioned analysis inputs.
+
+- Keep mapping parameters fixed. Changing `--window-size`, `--reference-size`, `--fragLen`, or `-k/--kmer` can change reported ANI values, hit counts, and sketch compatibility.
+- Use `--average-reciprocals` consistently. It changes the sparse output schema from directional rows to one averaged reciprocal row per pair when both directions are present, and it averages `ANI` plus the `FragID_*` fields while leaving count and alignment-fraction columns directional to the displayed row.
+- Save reference lists and sketches together. A sketch should be reused only with the same compatible mapping configuration that was used to create it.
+- Make saved sketches read-only after creation to avoid accidental modification, for example: `chmod a-w reference_sketch.*`
+- Record the exact `fastANI --version`, command line, reference list, and output mode (`--matrix`, `--extended-metrics`, `--average-reciprocals`) alongside released results.
+- Prefer `--batch-size` over mapping-parameter changes when the goal is only to reduce RAM usage. `--batch-size` changes how sketch shards are loaded, not the mapping configuration itself.
+- Keep the primary sparse output. Derived `.matrix` files or downstream reshaped matrices are useful, but the sparse table is the most explicit record of what FastANI reported.
+- Quality-check assemblies before analysis. Poorly assembled inputs can weaken ANI estimates and complicate downstream interpretation.
+
+For validated laboratory workflows, it is a good idea to freeze the full FastANI configuration, reference set, and sketch artifacts for each analysis release and treat any change to those inputs as a revalidation event.
 
 ## Support
 

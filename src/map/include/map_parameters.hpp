@@ -42,6 +42,7 @@ namespace skch
     bool reportAll;                                   //Report all alignments if this is true
     bool visualize;                                   //Visualize the conserved regions of two genomes
     bool matrixOutput;                                //report fastani results as lower triangular matrix
+    bool averageReciprocals = false;                  //average reciprocal ANI-like summaries in sparse tabular output
     bool extendedMetrics = false;                     //report extra fragment-level ANI metrics
     bool header = false;                              //write a header row in tabular output
     int batchSize = 0;                                //load sketch bins in batches during sketch-backed querying; 0 means load all shards at once

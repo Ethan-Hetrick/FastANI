@@ -3,20 +3,28 @@
 FastANI is a tool for fast, alignment-free computation of whole-genome Average Nucleotide Identity (ANI) between microbial genomes. It supports complete and draft assemblies, direct FASTA/FASTQ workflows, reusable reference sketches, and sketch batching for memory-constrained environments.
 
 !!! note "Two documentation entry points"
-    This docs site is maintained separately from the GitHub-facing [`README.md`](../README.md).
+    This docs site is maintained separately from the GitHub-facing repository `README.md`.
     The README stays optimized for repository browsing, while this homepage can use MkDocs features such as admonitions and richer navigation.
 
-## On this page
+## Section index
 
-[TOC]
+- [Start Here](#start-here)
+- [Installation](#installation)
+- [What FastANI Supports](#what-fastani-supports)
+- [Common Workflows](#common-workflows)
+- [Practical Notes](#practical-notes)
+- [Related Docs](#related-docs)
 
 ## Start Here
 
-- [Installation guide](INSTALL.txt)
-- [Repository README](../README.md)
+- [Installation guide](install.md)
 - [Benchmark docs](benchmark/index.md)
 - [Publication docs](pub/index.md)
 - [Reference material](references/index.md)
+
+## Installation
+
+See the dedicated [installation guide](install.md) for source builds and Release-mode recommendations.
 
 ## What FastANI Supports
 
@@ -24,12 +32,18 @@ FastANI is a tool for fast, alignment-free computation of whole-genome Average N
 - One-vs-many and many-vs-many genome comparisons
 - Sketch-backed querying to avoid rebuilding references repeatedly
 - Batch-controlled sketch loading with `--batch-size`
+- Optional reciprocal averaging in sparse output with `--average-reciprocals`
 - Optional tabular headers, matrix output, visualization output, and extended metrics
 
 !!! warning "Mapping Parameters Change Results"
     Non-default mapping parameters can materially change ANI values, hit counts, sensitivity, runtime, and sketch compatibility.
 
     If you want to preserve the expected correlation to ANIb described in the original FastANI paper, do not change `--window-size`, `--reference-size`, `--fragLen`, or `-k/--kmer` without validating the effect on your dataset first. See [Jain et al. 2018](https://doi.org/10.1038/s41467-018-07641-9).
+
+!!! warning "Reproducibility matters"
+    For stable validated workflows, keep mapping parameters fixed, save the reference list and sketch artifacts together, and make saved sketches read-only after creation.
+
+    Use `--average-reciprocals` consistently if you want one sparse row per reciprocal genome pair. In that mode, `ANI` and the `FragID_*` fields are averaged across reciprocal rows, while count and alignment-fraction columns remain tied to the displayed row. Prefer `--batch-size` over mapping-parameter changes when the goal is only to reduce RAM usage.
 
 ## Common Workflows
 
@@ -50,6 +64,12 @@ Build and reuse a sketch:
 ```sh
 fastANI --refList references.txt --write-ref-sketch reference_sketch
 fastANI -q QUERY_GENOME --sketch reference_sketch -o output.txt
+```
+
+Symmetrize reciprocal rows in sparse output:
+
+```sh
+fastANI --queryList queries.txt --refList references.txt --average-reciprocals --header -o output.txt
 ```
 
 Low-memory sketch-backed querying:

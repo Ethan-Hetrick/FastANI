@@ -6,10 +6,12 @@ site_dir: site
 theme:
   name: material
   features:
+    - navigation.tabs
     - navigation.sections
     - navigation.expand
     - navigation.footer
     - navigation.top
+    - navigation.tracking
     - toc.integrate
     - toc.follow
     - content.code.copy
@@ -24,6 +26,7 @@ markdown_extensions:
 
 nav:
   - Home: index.md
+  - Installation: install.md
   - Changelog: CHANGELOG.md
   - Benchmark:
       - Overview: benchmark/index.md
