@@ -80,7 +80,7 @@ jobs:
       - name: Test
         working-directory: ${{github.workspace}}/build
         # https://cmake.org/cmake/help/latest/manual/ctest.1.html
-        run: ctest -C ${{env.BUILD_TYPE}}
+        run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
       # Run code coverage
       - name: Run lcov to generate coverage
         working-directory: ${{github.workspace}}/build
@@ -100,4 +100,13 @@ jobs:
         with:
           name: Coverage-Summary
           path: ${{github.workspace}}/build/coverage_list.txt
+          retention-days: 5
+      - name: Upload CTest failure logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CTest-Logs
+          path: |
+            ${{github.workspace}}/build/Testing/Temporary/LastTest.log
+            ${{github.workspace}}/build/Testing/Temporary/LastTestsFailed.log
           retention-days: 5

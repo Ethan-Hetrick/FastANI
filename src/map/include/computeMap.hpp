@@ -639,8 +639,8 @@ namespace skch
 
           while (mi_L2iter.sw_end != lastSuperWindowRangeEnd)
           {
-            assert(mi_L2iter.sw_beg <= firstSuperWindowRangeStart);
-            assert(mi_L2iter.sw_end >= lastSuperWindowRangeEnd);
+            assert(mi_L2iter.sw_beg >= firstSuperWindowRangeStart);
+            assert(mi_L2iter.sw_end <= lastSuperWindowRangeEnd);
 
             //Check if the previous first minimizer is out of current range
             if (prev_beg_iter != mi_L2iter.sw_beg)
