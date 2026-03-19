@@ -1,0 +1,39 @@
+image: python:3.11
+
+stages:
+  - docs
+
+cache:
+  paths:
+    - .cache/pip
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+before_script:
+  - pip install -r requirements-docs.txt
+
+docs:
+  stage: docs
+  script:
+    - cp README.md docs/index.md
+    - mkdocs build --strict
+  artifacts:
+    paths:
+      - site
+    expire_in: 1 week
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+    - if: '$CI_COMMIT_BRANCH'
+
+pages:
+  stage: docs
+  script:
+    - cp README.md docs/index.md
+    - mkdocs build --strict
+    - mv site public
+  artifacts:
+    paths:
+      - public
+  rules:
+    - if: '$CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH'
