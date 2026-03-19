@@ -3,8 +3,8 @@
 FastANI is a tool for fast, alignment-free computation of whole-genome Average Nucleotide Identity (ANI) between microbial genomes. It supports complete and draft assemblies, direct FASTA/FASTQ workflows, reusable reference sketches, and sketch batching for memory-constrained environments.
 
 !!! note "Two documentation entry points"
-    This docs site is maintained separately from the GitHub-facing repository `README.md`.
-    The README stays optimized for repository browsing, while this homepage can use MkDocs features such as admonitions and richer navigation.
+This docs site is maintained separately from the GitHub-facing repository `README.md`.
+The README stays optimized for repository browsing, while this homepage can use MkDocs features such as admonitions and richer navigation.
 
 ## Section index
 
@@ -36,12 +36,12 @@ See the dedicated [installation guide](install.md) for source builds and Release
 - Optional tabular headers, matrix output, visualization output, and extended metrics
 
 !!! warning "Mapping Parameters Change Results"
-    Non-default mapping parameters can materially change ANI values, hit counts, sensitivity, runtime, and sketch compatibility.
+Non-default mapping parameters can materially change ANI values, hit counts, sensitivity, runtime, and sketch compatibility.
 
     If you want to preserve the expected correlation to ANIb described in the original FastANI paper, do not change `--window-size`, `--reference-size`, `--fragLen`, or `-k/--kmer` without validating the effect on your dataset first. See [Jain et al. 2018](https://doi.org/10.1038/s41467-018-07641-9).
 
 !!! warning "Reproducibility matters"
-    For stable validated workflows, keep mapping parameters fixed, save the reference list and sketch artifacts together, and make saved sketches read-only after creation.
+For stable validated workflows, keep mapping parameters fixed, save the reference list and sketch artifacts together, and make saved sketches read-only after creation.
 
     Use `--average-reciprocals` consistently if you want one sparse row per reciprocal genome pair. In that mode, `ANI` and the `FragID_*` fields are averaged across reciprocal rows, while count and alignment-fraction columns remain tied to the displayed row. Prefer `--batch-size` over mapping-parameter changes when the goal is only to reduce RAM usage.
 
@@ -81,18 +81,18 @@ fastANI -q QUERY_GENOME --sketch reference_sketch --batch-size 1 -o output.txt
 ## Practical Notes
 
 !!! tip "Compressed input is supported"
-    Gzip-compressed FASTA/FASTQ input is supported for normal query and reference workflows.
-    For heavy benchmarking or repeated runs, uncompressed inputs may be faster because they avoid repeated gzip decompression.
+Gzip-compressed FASTA/FASTQ input is supported for normal query and reference workflows.
+For heavy benchmarking or repeated runs, uncompressed inputs may be faster because they avoid repeated gzip decompression.
 
 !!! tip "Creating reference lists"
-    Example command for creating a line-separated reference list:
+Example command for creating a line-separated reference list:
 
     ```sh
     find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o -name '*.fa.gz' -o -name '*.fna.gz' -o -name '*.fasta.gz' \) | sort > references.txt
     ```
 
 !!! warning "Windows-created list files"
-    If genome lists are copied or created from a Windows application, run `dos2unix` on the list file first to ensure the expected line-ending format.
+If genome lists are copied or created from a Windows application, run `dos2unix` on the list file first to ensure the expected line-ending format.
 
 ## Related Docs
 

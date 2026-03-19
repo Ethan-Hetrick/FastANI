@@ -15,7 +15,13 @@ if [[ -z "$prettier_bin" ]]; then
 fi
 
 if [[ $# -eq 0 ]]; then
-  set -- --check .
+  mapfile -t tracked_files < <(git ls-files "*.md" "*.yaml" "*.yml")
+
+  if [[ ${#tracked_files[@]} -eq 0 ]]; then
+    exit 0
+  fi
+
+  set -- --check "${tracked_files[@]}"
 fi
 
 "$prettier_bin" "$@"
