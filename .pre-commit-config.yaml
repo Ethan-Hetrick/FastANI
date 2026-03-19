@@ -1,0 +1,40 @@
+default_install_hook_types:
+  - pre-commit
+  - pre-push
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        stages:
+          - pre-commit
+        types_or:
+          - markdown
+          - yaml
+        additional_dependencies:
+          - prettier@3.5.3
+
+  - repo: local
+    hooks:
+      - id: fastani-compile
+        name: Build fastANI (Release)
+        entry: scripts/precommit_build_fastani.sh
+        language: system
+        pass_filenames: false
+        stages:
+          - pre-push
+      - id: fastani-docs
+        name: Build MkDocs site
+        entry: scripts/precommit_build_docs.sh
+        language: system
+        pass_filenames: false
+        stages:
+          - pre-push
