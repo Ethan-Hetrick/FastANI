@@ -93,15 +93,10 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 | `--rl, --refList`   | `null`  | Text file listing reference genome paths, one genome per line.                      | Use for many-reference runs or sketch creation.           |
 | `--sketch`          | `null`  | Load a previously written reference sketch prefix instead of rebuilding references. | Use for repeated querying against the same reference set. |
 
-Gzip-compressed FASTA/FASTQ input is supported throughout the normal query and reference workflows.
-For heavy benchmarking or repeated runs, uncompressed inputs may be faster because they avoid repeated gzip decompression.
-
 <details>
 <summary>Example: create a line-separated reference list</summary>
 
-```sh
-find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o -name '*.fa.gz' -o -name '*.fna.gz' -o -name '*.fasta.gz' \) | sort > references.txt
-```
+<pre><code class="language-sh">find references/ -type f \( -name '*.fa' -o -name '*.fna' -o -name '*.fasta' -o -name '*.fa.gz' -o -name '*.fna.gz' -o -name '*.fasta.gz' \) | sort &gt; references.txt</code></pre>
 
 </details>
 
@@ -145,8 +140,7 @@ The main output is a tab-delimited file. Each row reports:
 <details>
 <summary>Example: build a lower-triangular matrix from sparse output for any metric</summary>
 
-```sh
-# Sparse FastANI output with a header row.
+<pre><code class="language-sh"># Sparse FastANI output with a header row.
 input=fastani.tsv
 metric=ANI
 
@@ -154,12 +148,12 @@ metric=ANI
 # ANI, QueryAlignmentFraction, ReferenceAlignmentFraction, FragID_Median
 awk -F '\t' -v metric="$metric" '
 NR == 1 {
-  for (i = 1; i <= NF; i++) {
+  for (i = 1; i &lt;= NF; i++) {
     col[$i] = i
   }
 
   if (!(metric in col)) {
-    printf("missing metric column: %s\n", metric) > "/dev/stderr"
+    printf("missing metric column: %s\n", metric) &gt; "/dev/stderr"
     exit 1
   }
 
@@ -180,26 +174,25 @@ NR == 1 {
     name[n] = r
   }
 
-  if (id[q] > id[r]) {
+  if (id[q] &gt; id[r]) {
     mat[id[q], id[r]] = v
-  } else if (id[r] > id[q]) {
+  } else if (id[r] &gt; id[q]) {
     mat[id[r], id[q]] = v
   }
 }
 END {
   print n
 
-  for (i = 1; i <= n; i++) {
+  for (i = 1; i &lt;= n; i++) {
     printf("%s", name[i])
-    for (j = 1; j < i; j++) {
+    for (j = 1; j &lt; i; j++) {
       key = i SUBSEP j
       printf("\t%s", (key in mat ? mat[key] : "NA"))
     }
     printf("\n")
   }
 }
-' "$input" > metric.matrix
-```
+' "$input" &gt; metric.matrix</code></pre>
 
 </details>
 
@@ -231,17 +224,16 @@ Most users should leave these at their defaults unless they have validated a dif
 <details>
 <summary>Example: estimate an average genome size for <code>--reference-size</code></summary>
 
-```sh
-# Reference list with one FASTA path per line.
+<pre><code class="language-sh"># Reference list with one FASTA path per line.
 ref_list=references.txt
-n=$(wc -l < "$ref_list")
+n=$(wc -l &lt; "$ref_list")
 
 # Count non-header sequence characters across the full list.
 total_bases=$(
   while IFS= read -r fasta; do
-    gzip -cd "$fasta" 2>/dev/null || cat "$fasta"
-  done < "$ref_list" |
-    grep -v '^>' |
+    gzip -cd "$fasta" 2&gt;/dev/null || cat "$fasta"
+  done &lt; "$ref_list" |
+    grep -v '^&gt;' |
     tr -d '[:space:]' |
     wc -c
 )
@@ -251,8 +243,7 @@ avg_bases=$(
   awk -v total="$total_bases" -v n="$n" 'BEGIN {print int(total / n)}'
 )
 
-printf 'average_genome_size=%s\n' "$avg_bases"
-```
+printf 'average_genome_size=%s\n' "$avg_bases"</code></pre>
 
 </details>
 
@@ -314,8 +305,7 @@ fastANI -q query.fa --sketch reference_sketch --batch-size 5 -o output.txt
 <details>
 <summary>Example: estimate query-time memory from a sketch prefix</summary>
 
-```sh
-# Sketch prefix and desired shard batch size.
+<pre><code class="language-sh"># Sketch prefix and desired shard batch size.
 prefix=reference_sketch
 batch=5
 
@@ -330,8 +320,7 @@ BEGIN {
 
   printf("estimated_peak_rss=%.2f GiB\n", peak)
   printf("suggested_request=%.2f GiB\n", req)
-}'
-```
+}'</code></pre>
 
 </details>
 
@@ -348,16 +337,15 @@ Using the average shard size instead would be a more aggressive estimate and may
 <details>
 <summary>Example: estimate sketch-build memory from a FASTA <code>--refList</code></summary>
 
-```sh
-# Text file containing one reference FASTA path per line.
+<pre><code class="language-sh"># Text file containing one reference FASTA path per line.
 ref_list=references.txt
 
 # Count non-header sequence characters across all references.
 bases=$(
   while read -r f; do
-    gzip -cd "$f" 2>/dev/null || cat "$f"
-  done < "$ref_list" |
-  grep -v '^>' |
+    gzip -cd "$f" 2&gt;/dev/null || cat "$f"
+  done &lt; "$ref_list" |
+  grep -v '^&gt;' |
   tr -d '[:space:]' |
   wc -c
 )
@@ -370,8 +358,7 @@ BEGIN {
 
   printf("total_bases=%d (%.3f Gbp)\n", b, gbp)
   printf("suggested_request=%.2f GiB\n", req)
-}'
-```
+}'</code></pre>
 
 </details>
 
