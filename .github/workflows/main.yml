@@ -26,6 +26,38 @@ jobs:
         with:
           submodules: recursive
           lfs: true
+      - name: Patch Catch2 cstdint includes
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          root = Path("ext/Catch2/src/catch2")
+          include = "#include <cstdint>\n"
+          fixed_width = re.compile(
+              r"\b(?:std::)?u?int(?:8|16|32|64)_t\b"
+          )
+
+          for path in root.rglob("*"):
+              if path.suffix not in {".hpp", ".cpp", ".h", ".cxx", ".ipp"}:
+                  continue
+
+              text = path.read_text()
+              if include in text or "<stdint.h>" in text or not fixed_width.search(text):
+                  continue
+
+              lines = text.splitlines(keepends=True)
+              insert_at = None
+              for idx, line in enumerate(lines):
+                  if line.startswith("#include "):
+                      insert_at = idx + 1
+
+              if insert_at is None:
+                  raise RuntimeError(f"No include block found in {path}")
+
+              lines.insert(insert_at, include)
+              path.write_text("".join(lines))
+          PY
       - name: Install zlib, gsl, cppcheck and lcov
         run: |
           sudo apt-get update
@@ -48,19 +80,22 @@ jobs:
       - name: Test
         working-directory: ${{github.workspace}}/build
         # https://cmake.org/cmake/help/latest/manual/ctest.1.html
-        run: ctest -C ${{env.BUILD_TYPE}}
+        run: ctest -C ${{env.BUILD_TYPE}} --output-on-failure
       # Run code coverage
       - name: Run lcov to generate coverage
         working-directory: ${{github.workspace}}/build
         run: make lcov2
       # Uploading to Codecov
+      - name: Note skipped Codecov upload
+        if: ${{ secrets.CODECOV_TOKEN == '' }}
+        run: echo "CODECOV_TOKEN is not configured for this workflow context; skipping Codecov upload."
       - name: Upload coverage reports to codecov.io
-        uses: codecov/codecov-action@v3
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        uses: codecov/codecov-action@v5
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
-          directory: ${{github.workspace}}/build
           files: ${{github.workspace}}/build/coverage.info
-          fail_ci_if_error: true
+          fail_ci_if_error: false
           verbose: true
       # Uploading to Github Action as artifact
       - name: Upload Coverage Summary as artifact
@@ -68,4 +103,13 @@ jobs:
         with:
           name: Coverage-Summary
           path: ${{github.workspace}}/build/coverage_list.txt
+          retention-days: 5
+      - name: Upload CTest failure logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CTest-Logs
+          path: |
+            ${{github.workspace}}/build/Testing/Temporary/LastTest.log
+            ${{github.workspace}}/build/Testing/Temporary/LastTestsFailed.log
           retention-days: 5
