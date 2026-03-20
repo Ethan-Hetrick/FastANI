@@ -429,7 +429,9 @@ For multi-genome runs, the `.visual` file may contain mappings for many genome p
 
 FastANI supports multi-threading via `-t, --threads`.
 
-For even larger workloads, users can also divide a large reference database into chunks and run multiple FastANI processes in parallel. The repository includes helper scripts for splitting databases for that purpose.
+For high-throughput workloads, users can split query lists across many scheduler tasks and run them against the same reference sketch in parallel. Using sketch-backed queries with `--batch-size 1` keeps per-task memory requirements low, which makes this approach easier to scale across many nodes.
+
+> This pattern also fits naturally into workflow managers such as Nextflow or Snakemake.
 
 <details>
 <summary>Example: minimal SGE array job template</summary>
