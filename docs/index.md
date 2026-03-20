@@ -116,20 +116,20 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 
 The main output is a tab-delimited file. Each row reports:
 
-| Field                        | Description                                                                                                                            |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Query                        | Query genome path or identifier                                                                                                        |
-| Reference                    | Reference genome path or identifier                                                                                                    |
-| ANI                          | Estimated average nucleotide identity between the genome pair                                                                          |
-| MatchedFragments             | Number of bidirectional fragment mappings supporting the ANI estimate                                                                  |
-| TotalQueryFragments          | Total number of query fragments considered for the comparison                                                                          |
-| QueryAlignmentFraction\*     | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`)                      |
-| ReferenceAlignmentFraction\* | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
-| FragID_F99\*                 | Fraction of mapped fragments with ANI at or above 99%                                                                                  |
-| FragID_Stdev\*               | Standard deviation of fragment-level ANI values                                                                                        |
-| FragID_Q1\*                  | First quartile of fragment-level ANI values                                                                                            |
-| FragID_Median\*              | Median fragment-level ANI value                                                                                                        |
-| FragID_Q3\*                  | Third quartile of fragment-level ANI values                                                                                            |
+| Field                        | Description                                                                                                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Query                        | Query genome path or identifier                                                                                                                                                                                           |
+| Reference                    | Reference genome path or identifier                                                                                                                                                                                       |
+| ANI                          | Estimated average nucleotide identity between the genome pair; primary whole-genome similarity summary                                                                                                                    |
+| MatchedFragments             | Number of bidirectional fragment mappings supporting the ANI estimate                                                                                                                                                     |
+| TotalQueryFragments          | Total number of query fragments considered for the comparison                                                                                                                                                             |
+| QueryAlignmentFraction\*     | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`); useful for judging whether ANI is supported across enough of the query genome                          |
+| ReferenceAlignmentFraction\* | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`); useful for judging whether ANI is supported across enough of the reference genome |
+| FragID_F99\*                 | Fraction of mapped fragments with ANI at or above 99%; unusually high values can suggest HGT or other unusually conserved regions                                                                                         |
+| FragID_Stdev\*               | Standard deviation of fragment-level ANI values                                                                                                                                                                           |
+| FragID_Q1\*                  | First quartile of fragment-level ANI values; unusually low values can suggest contamination or mixed signal                                                                                                               |
+| FragID_Median\*              | Median fragment-level ANI value; a useful robust summary when ANI may be pulled by abundant outlier fragments                                                                                                             |
+| FragID_Q3\*                  | Third quartile of fragment-level ANI values                                                                                                                                                                               |
 
 > Asterisk (`*`) indicates fields that are included only when `--extended-metrics` is enabled.
 
@@ -425,7 +425,7 @@ For multi-genome runs, the `.visual` file may contain mappings for many genome p
   />
 </p>
 
-## Parallelization
+## Scalability
 
 FastANI supports multi-threading via `-t, --threads`.
 
@@ -451,8 +451,15 @@ source /etc/profile
 set -euo pipefail
 mkdir -p logs results
 
-# Replace this command with the real work for each task.
-echo "task=${SGE_TASK_ID}" > "results/task_${SGE_TASK_ID}.txt"</code></pre>
+# One query per task against a shared reference sketch.
+query=$(sed -n "${SGE_TASK_ID}p" queries.txt)
+
+fastANI \
+  -q "$query" \
+  --sketch reference_sketch \
+  --batch-size 1 \
+  -t 1 \
+  > "results/task_${SGE_TASK_ID}.tsv"</code></pre>
 
 </details>
 
@@ -470,12 +477,19 @@ echo "task=${SGE_TASK_ID}" > "results/task_${SGE_TASK_ID}.txt"</code></pre>
 set -euo pipefail
 mkdir -p logs results
 
-# Replace this command with the real work for each task.
-echo "task=${SLURM_ARRAY_TASK_ID}" > "results/task_${SLURM_ARRAY_TASK_ID}.txt"</code></pre>
+# One query per task against a shared reference sketch.
+query=$(sed -n "${SLURM_ARRAY_TASK_ID}p" queries.txt)
+
+fastANI \
+  -q "$query" \
+  --sketch reference_sketch \
+  --batch-size 1 \
+  -t 1 \
+  > "results/task_${SLURM_ARRAY_TASK_ID}.tsv"</code></pre>
 
 </details>
 
-### Compatibility notes
+### Note on Parameter Interoperability
 
 Only options with limited interoperability are listed here. `✓` means the combination is supported. `X` means the combination is incompatible or not applicable.
 
@@ -506,9 +520,18 @@ In practice, this difference is usually small. When `--matrix` output is request
 
 If you want a sparse tabular output with one row per reciprocal genome pair, use `--average-reciprocals`. It averages `ANI` and the `FragID_*` fragment-summary fields across the two directions, while keeping `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` tied to the displayed query/reference orientation.
 
-### Input quality guidance
+### Biological Reasons For Unexpected ANI Values
 
-Input quality matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
+- Input quality still matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
+- Comparisons with less than about 80% fragment-level alignment coverage are often less reliable to interpret as whole-genome ANI summaries, because too little of the genomes is contributing to the estimate. When available, review `QueryAlignmentFraction` and `ReferenceAlignmentFraction` alongside ANI.
+- Horizontal gene transfer can artificially inflate ANI values for some genome pairs, especially when recent gene exchange causes portions of otherwise more distant genomes to appear unusually similar.
+
+The extended metrics can be very helpful when interpreting the biological significance of an ANI value.
+
+- Watch `QueryAlignmentFraction` and `ReferenceAlignmentFraction` alongside ANI. A high ANI computed from a small aligned fraction is easier to overinterpret than a similarly high ANI supported across most of both genomes.
+- Abnormally high `FragID_F99` values can be a clue that horizontal gene transfer or other unusually conserved regions are inflating the apparent similarity between two genomes.
+- Very low `FragID_Q1` values can be a clue that part of the comparison is being pulled down by contamination or another mixed source. In that situation, contamination can artificially drive the ANI estimate lower than expected for the main organismal signal.
+- As a quick-and-dirty check, compare `FragID_Median` with ANI. If the gap is large, `FragID_Median` can sometimes be a better species-identification signal than ANI when horizontal gene transfer, contamination, or other outlier fragments are especially abundant in the comparison.
 
 ### Out-of-memory errors
 
