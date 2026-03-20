@@ -2,9 +2,23 @@ name: Build and Deploy Docs
 
 on:
   push:
-    branches: ["master", "main", "perf/all-v-all", "feature/reference-size-parameter"]
+    branches:
+      [
+        "master",
+        "main",
+        "perf/all-v-all",
+        "feature/reference-size-parameter",
+        "bugfix/thread-batch-bug",
+      ]
   pull_request:
-    branches: ["master", "main", "perf/all-v-all", "feature/reference-size-parameter"]
+    branches:
+      [
+        "master",
+        "main",
+        "perf/all-v-all",
+        "feature/reference-size-parameter",
+        "bugfix/thread-batch-bug",
+      ]
   workflow_dispatch:
 
 permissions:
