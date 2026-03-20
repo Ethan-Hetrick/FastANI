@@ -12,6 +12,7 @@ on:
 env:
   # CMake build type (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Debug
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
 jobs:
   Build-Test:
@@ -96,13 +97,13 @@ jobs:
         run: make lcov2
       # Uploading to Codecov
       - name: Note skipped Codecov upload
-        if: ${{ secrets.CODECOV_TOKEN == '' }}
+        if: ${{ env.CODECOV_TOKEN == '' }}
         run: echo "CODECOV_TOKEN is not configured for this workflow context; skipping Codecov upload."
       - name: Upload coverage reports to codecov.io
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ env.CODECOV_TOKEN }}
           files: ${{github.workspace}}/build/coverage.info
           fail_ci_if_error: false
           verbose: true
