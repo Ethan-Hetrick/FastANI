@@ -98,11 +98,19 @@ Useful CMake options
 `-DBOOST_ROOT=/path/to/boost`
 - Use Boost from this location instead of GSL discovery defaults.
 
+`-DBUILD_TESTING=ON`
+- Build the test suite. This requires initializing submodules first with
+  `git submodule update --init --recursive`.
+
 
 Notes
 -----
 
 - `Release` builds are recommended for actual performance evaluation.
+- Fresh clones build the `fastANI` executable by default without requiring test
+  submodules.
+- If you want to build tests, initialize submodules first and configure with
+  `-DBUILD_TESTING=ON`.
 - If you are running directly from the build tree, invoke `build/fastANI`.
 - If you install FastANI, you can invoke it as `fastANI` once the install
   prefix `bin/` directory is on your `PATH`.

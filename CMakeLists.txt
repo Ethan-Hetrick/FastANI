@@ -16,7 +16,7 @@ target_include_directories(fastANI PUBLIC "src/")
 #
 # by default, static linking
 option(GSL_SHARED "Build using shared libraries" ON)
-option(BUILD_TESTING "Build tests" ON) # build tests
+option(BUILD_TESTING "Build tests" OFF) # build tests
 #
 # zlib dependency
 find_package(ZLIB 1.1 REQUIRED)
@@ -62,6 +62,11 @@ endif(${GSL_FOUND})
 #
 #
 if(${BUILD_TESTING})
+    if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/ext/Catch2/CMakeLists.txt")
+        message(FATAL_ERROR
+                "BUILD_TESTING=ON requires the Catch2 submodule. "
+                "Run `git submodule update --init --recursive` or configure with -DBUILD_TESTING=OFF.")
+    endif()
     add_subdirectory(ext/Catch2)
     include(CTest)
     include(Catch)
@@ -93,7 +98,7 @@ set(CPACK_GENERATOR "TGZ")
 set(CPACK_SOURCE_GENERATOR "TGZ")
 set(CPACK_PACKAGE_DIRECTORY ${PROJECT_BINARY_DIR}/package)
 
-set(CPACK_SOURCE_IGNORE_FILES .git/ .github/ 
+set(CPACK_SOURCE_IGNORE_FILES .git/ .github/
     .vscode/ .cache/ .mypy_cache/
     .idea/ complie_comands.json
     lcov/ lcov0/ lcov2/ data/ cmake-build-debug/
