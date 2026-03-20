@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <unordered_map>
 #include <fstream>
+#include <iostream>
 #include <cmath>
 #include <omp.h>
 #include <zlib.h>
@@ -490,28 +491,35 @@ void outputCGI(skch::Parameters &parameters,
   // sort result by identity
   std::sort(outputResults.rbegin(), outputResults.rend());
 
-  std::ofstream outstrm(fileName);
+  std::ofstream outFile;
+  std::ostream *outstrm = &std::cout;
+
+  if (!fileName.empty())
+  {
+    outFile.open(fileName);
+    outstrm = &outFile;
+  }
 
   if (parameters.header)
   {
-    outstrm << "Query"
-            << "\t" << "Reference"
-            << "\t" << "ANI"
-            << "\t" << "MatchedFragments"
-            << "\t" << "TotalQueryFragments";
+    (*outstrm) << "Query"
+               << "\t" << "Reference"
+               << "\t" << "ANI"
+               << "\t" << "MatchedFragments"
+               << "\t" << "TotalQueryFragments";
 
     if (parameters.extendedMetrics)
     {
-      outstrm << "\t" << "QueryAlignmentFraction"
-              << "\t" << "ReferenceAlignmentFraction"
-              << "\t" << "FragID_F99"
-              << "\t" << "FragID_Stdev"
-              << "\t" << "FragID_Q1"
-              << "\t" << "FragID_Median"
-              << "\t" << "FragID_Q3";
+      (*outstrm) << "\t" << "QueryAlignmentFraction"
+                 << "\t" << "ReferenceAlignmentFraction"
+                 << "\t" << "FragID_F99"
+                 << "\t" << "FragID_Stdev"
+                 << "\t" << "FragID_Q1"
+                 << "\t" << "FragID_Median"
+                 << "\t" << "FragID_Q3";
     }
 
-    outstrm << "\n";
+    (*outstrm) << "\n";
   }
 
   // Report results
@@ -541,21 +549,22 @@ void outputCGI(skch::Parameters &parameters,
     // Checking if shared genome is above a certain fraction of genome length
     if (sharedLength >= minGenomeLength * parameters.minFraction)
     {
-      outstrm << qryGenome << "\t" << refGenome << "\t" << e.identity << "\t" << e.countSeq << "\t"
-              << e.totalQueryFragments;
+      (*outstrm) << qryGenome << "\t" << refGenome << "\t" << e.identity << "\t" << e.countSeq
+                 << "\t" << e.totalQueryFragments;
 
       if (parameters.extendedMetrics)
       {
-        outstrm << "\t" << queryAlignmentCoverage << "\t" << referenceAlignmentCoverage << "\t"
-                << e.frac99 << "\t" << e.sdAni << "\t" << e.q1Ani << "\t" << e.medianAni << "\t"
-                << e.q3Ani;
+        (*outstrm) << "\t" << queryAlignmentCoverage << "\t" << referenceAlignmentCoverage << "\t"
+                   << e.frac99 << "\t" << e.sdAni << "\t" << e.q1Ani << "\t" << e.medianAni << "\t"
+                   << e.q3Ani;
       }
 
-      outstrm << "\n";
+      (*outstrm) << "\n";
     }
   }
 
-  outstrm.close();
+  if (outFile.is_open())
+    outFile.close();
 }
 
 /**
@@ -669,14 +678,14 @@ void outputPhylip(skch::Parameters &parameters,
 /**
  * @brief                         generate multiple parameter objects from one
  * @details                       purpose it to divide the list of reference genomes
- *                                into as many buckets as there are threads
+ *                                into as many buckets as requested by splitCount
  * @param[in]   parameters
  * @param[out]  parameters_split
  */
 void splitReferenceGenomes(skch::Parameters &parameters,
-                           std::vector<skch::Parameters> &parameters_split)
+                           std::vector<skch::Parameters> &parameters_split, int splitCount)
 {
-  for (int i = 0; i < parameters.threads; i++)
+  for (int i = 0; i < splitCount; i++)
   {
     parameters_split[i] = parameters;
 
@@ -686,7 +695,7 @@ void splitReferenceGenomes(skch::Parameters &parameters,
     // assign ref. genome to threads in round-robin fashion
     for (int j = 0; j < parameters.refSequences.size(); j++)
     {
-      if (j % parameters.threads == i)
+      if (j % splitCount == i)
         parameters_split[i].refSequences.push_back(parameters.refSequences[j]);
     }
   }

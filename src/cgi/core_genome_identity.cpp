@@ -8,10 +8,12 @@
 #include <ctime>
 #include <chrono>
 #include <functional>
+#include <fstream>
+#include <stdexcept>
 #include <omp.h>
 #include <memory>
 
-//Own includes
+// Own includes
 #include "map/include/map_parameters.hpp"
 #include "map/include/base_types.hpp"
 #include "map/include/parseCmdArgs.hpp"
@@ -21,6 +23,31 @@
 #include "cgi/include/computeCoreIdentity.hpp"
 #include "map/include/sketch_io.hpp"
 
+namespace
+{
+int detectSketchShardCount(const std::string &sketchPrefix)
+{
+  int shardCount = 0;
+
+  while (true)
+  {
+    const std::string sketchPath = sketchPrefix + "." + std::to_string(shardCount);
+    std::ifstream in(sketchPath);
+    if (!in.good())
+      break;
+
+    shardCount++;
+  }
+
+  if (shardCount == 0)
+  {
+    throw std::runtime_error("ERROR: no sketch shards found for prefix " + sketchPrefix);
+  }
+
+  return shardCount;
+}
+} // namespace
+
 int core_genome_identity(int argc, char **argv)
 {
   /*
@@ -28,32 +55,38 @@ int core_genome_identity(int argc, char **argv)
    * for efficient multi-threaded execution
    */
   unsetenv((char *)"MALLOC_ARENA_MAX");
-  using namespace std::placeholders;  // for _1, _2, _3...
+  using namespace std::placeholders; // for _1, _2, _3...
 
-  //Parse command line arguements
-  skch::Parameters parameters;        //sketching and mapping parameters
+  // Parse command line arguements
+  skch::Parameters parameters; // sketching and mapping parameters
   skch::parseandSave(argc, argv, parameters);
 
   std::string fileName = parameters.outFileName;
 
-  //To redirect Mashmap's mapping output to null fs, using file name for CGI output
+  // To redirect Mashmap's mapping output to null fs, using file name for CGI output
   parameters.outFileName = "/dev/null";
 
-  //Set up for parallel execution
-  omp_set_num_threads(parameters.threads);
-  std::vector<skch::Parameters> parameters_split(parameters.threads);
-  cgi::splitReferenceGenomes(parameters, parameters_split);
+  const int executionThreads = std::max(1, parameters.threads);
+  const int referenceSplitCount =
+    parameters.loadSketchMode ? detectSketchShardCount(parameters.sketchFile) : executionThreads;
+  parameters.sketchShardCount = referenceSplitCount;
 
-  //Final output vectors of ANI computation (one per thread; merged after parallel region)
-  std::vector< std::vector<cgi::CGI_Results> > finalResults_by_thread(parameters.threads);
-  std::vector<std::unique_ptr<skch::CachedQueryData>> cachedQueries(parameters.querySequences.size());
+  // Set up for parallel execution
+  omp_set_num_threads(executionThreads);
+  std::vector<skch::Parameters> parameters_split(referenceSplitCount);
+  cgi::splitReferenceGenomes(parameters, parameters_split, referenceSplitCount);
+
+  // Final output vectors of ANI computation (one per thread; merged after parallel region)
+  std::vector<std::vector<cgi::CGI_Results>> finalResults_by_thread(referenceSplitCount);
+  std::vector<std::unique_ptr<skch::CachedQueryData>> cachedQueries(
+    parameters.querySequences.size());
   const int effectiveBatchSize =
     (parameters.batchSize > 0)
-      ? std::min(parameters.batchSize, parameters.threads)
-      : parameters.threads;
+      ? std::min(std::min(parameters.batchSize, executionThreads), referenceSplitCount)
+      : std::min(executionThreads, referenceSplitCount);
 
-  std::vector<bool> sanityCheck(parameters.threads, true);
-  std::vector<float> ratioDiffs(parameters.threads, true);
+  std::vector<bool> sanityCheck(referenceSplitCount, true);
+  std::vector<float> ratioDiffs(referenceSplitCount, true);
 
   auto runReferenceSplit = [&](uint64_t i)
   {
@@ -61,22 +94,20 @@ int core_genome_identity(int argc, char **argv)
       std::cerr << "INFO [thread 0], skch::main, Count of threads executing parallel_for : "
                 << omp_get_num_threads() << std::endl;
 
-    //start timer
+    // start timer
     auto t0 = skch::Time::now();
 
     // Build or load the sketch for reference
     std::unique_ptr<skch::Sketch> referSketchPtr;
 
-    if(parameters.loadSketchMode)
+    if (parameters.loadSketchMode)
     {
-      std::string inSketchFile =
-        parameters.sketchFile + "." + std::to_string(i);
+      std::string inSketchFile = parameters.sketchFile + "." + std::to_string(i);
 
       referSketchPtr = std::make_unique<skch::Sketch>(
-          skch::loadReferenceSketch(parameters_split[i], inSketchFile));
+        skch::loadReferenceSketch(parameters_split[i], inSketchFile));
 
-      std::cerr << "INFO [thread " << omp_get_thread_num()
-                << "], skch::main, loaded sketch from "
+      std::cerr << "INFO [thread " << omp_get_thread_num() << "], skch::main, loaded sketch from "
                 << inSketchFile << std::endl;
     }
     else
@@ -88,29 +119,29 @@ int core_genome_identity(int argc, char **argv)
 
     // When loading from sketch, rebuild the per-split reference genome names
     // needed later by outputCGI/outputPhylip.
-    if(parameters.loadSketchMode)
+    if (parameters.loadSketchMode)
     {
       parameters_split[i].refSequences.clear();
       parameters_split[i].refSequenceLengths.clear();
 
       size_t prev = 0;
-      for(size_t g = 0; g < referSketch.sequencesByFileInfo.size(); g++)
+      for (size_t g = 0; g < referSketch.sequencesByFileInfo.size(); g++)
       {
         size_t end = static_cast<size_t>(referSketch.sequencesByFileInfo[g]);
 
         std::string genomeName = "sketch_ref_" + std::to_string(g);
-        if(g < referSketch.referenceFiles.size() && !referSketch.referenceFiles[g].empty())
+        if (g < referSketch.referenceFiles.size() && !referSketch.referenceFiles[g].empty())
           genomeName = referSketch.referenceFiles[g];
-        else if(prev < referSketch.metadata.size())
+        else if (prev < referSketch.metadata.size())
           genomeName = referSketch.metadata[prev].name;
 
         uint64_t genomeLen = 0;
-        for(size_t contigId = prev; contigId < end && contigId < referSketch.metadata.size(); contigId++)
+        for (size_t contigId = prev; contigId < end && contigId < referSketch.metadata.size();
+             contigId++)
         {
           const uint64_t contigLen = static_cast<uint64_t>(referSketch.metadata[contigId].len);
-          const uint64_t usableLen =
-            (contigLen / static_cast<uint64_t>(parameters.minReadLength)) *
-            static_cast<uint64_t>(parameters.minReadLength);
+          const uint64_t usableLen = (contigLen / static_cast<uint64_t>(parameters.minReadLength)) *
+                                     static_cast<uint64_t>(parameters.minReadLength);
           genomeLen += usableLen;
         }
 
@@ -120,15 +151,13 @@ int core_genome_identity(int argc, char **argv)
       }
     }
 
-    if(parameters.writeRefSketchMode)
+    if (parameters.writeRefSketchMode)
     {
-      std::string outSketchFile =
-        parameters.writeRefSketchFile + "." + std::to_string(i);
+      std::string outSketchFile = parameters.writeRefSketchFile + "." + std::to_string(i);
 
       skch::saveReferenceSketch(referSketch, parameters_split[i], outSketchFile);
 
-      std::cerr << "INFO [thread " << omp_get_thread_num()
-                << "], skch::main, wrote sketch to "
+      std::cerr << "INFO [thread " << omp_get_thread_num() << "], skch::main, wrote sketch to "
                 << outSketchFile << std::endl;
 
       return;
@@ -140,16 +169,16 @@ int core_genome_identity(int argc, char **argv)
       std::cerr << "INFO [thread 0], skch::main, Time spent sketching the reference : "
                 << timeRefSketch.count() << " sec" << std::endl;
 
-    //Final output vector of ANI computation
+    // Final output vector of ANI computation
     std::vector<cgi::CGI_Results> finalResults_local;
 
     sanityCheck[i] = referSketch.sanityCheck(parameters.maxRatioDiff);
     ratioDiffs[i] = referSketch.getRatioDifference();
 
-    if(sanityCheck[i])
+    if (sanityCheck[i])
     {
-      //Loop over query genomes
-      for(uint64_t queryno = 0; queryno < parameters_split[i].querySequences.size(); queryno++)
+      // Loop over query genomes
+      for (uint64_t queryno = 0; queryno < parameters_split[i].querySequences.size(); queryno++)
       {
         t0 = skch::Time::now();
 
@@ -162,14 +191,16 @@ int core_genome_identity(int argc, char **argv)
 
         std::unique_ptr<skch::Map> mapperPtr;
 
-        if(parameters.batchSize > 0 && parameters.loadSketchMode)
+        if (parameters.batchSize > 0 && parameters.loadSketchMode)
         {
           totalQueryFragments = cachedQueries[queryno]->totalQueryFragments;
-          mapperPtr = std::make_unique<skch::Map>(parameters_split[i], referSketch, *cachedQueries[queryno], fn);
+          mapperPtr = std::make_unique<skch::Map>(parameters_split[i], referSketch,
+                                                  *cachedQueries[queryno], fn);
         }
         else
         {
-          mapperPtr = std::make_unique<skch::Map>(parameters_split[i], referSketch, totalQueryFragments, queryno, fn);
+          mapperPtr = std::make_unique<skch::Map>(parameters_split[i], referSketch,
+                                                  totalQueryFragments, queryno, fn);
         }
 
         skch::Map &mapper = *mapperPtr;
@@ -182,120 +213,120 @@ int core_genome_identity(int argc, char **argv)
 
         t0 = skch::Time::now();
 
-        cgi::computeCGI(parameters_split[i], mapResults, mapper, referSketch,
-                        totalQueryFragments, queryno, fileName, finalResults_local);
+        cgi::computeCGI(parameters_split[i], mapResults, mapper, referSketch, totalQueryFragments,
+                        queryno, fileName, finalResults_local);
 
         std::chrono::duration<double> timeCGI = skch::Time::now() - t0;
 
         if (omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::main, Time spent post mapping : "
-                    << timeCGI.count() << " sec" << std::endl;
+          std::cerr << "INFO [thread 0], skch::main, Time spent post mapping : " << timeCGI.count()
+                    << " sec" << std::endl;
       }
     }
 
-    cgi::correctRefGenomeIds(finalResults_local,
-                             static_cast<int>(i),
-                             parameters.threads);
+    cgi::correctRefGenomeIds(finalResults_local, static_cast<int>(i), referenceSplitCount);
 
     // Store this thread's results without locking; merge after parallel region
     finalResults_by_thread[i] = std::move(finalResults_local);
 
-    std::cerr << "INFO [thread " << omp_get_thread_num()
-              << "], skch::main, ready to exit the loop" << std::endl;
+    std::cerr << "INFO [thread " << omp_get_thread_num() << "], skch::main, ready to exit the loop"
+              << std::endl;
   };
 
-  if(parameters.batchSize > 0 && parameters.loadSketchMode)
+  if (parameters.batchSize > 0 && parameters.loadSketchMode)
   {
-    for(uint64_t queryno = 0; queryno < parameters.querySequences.size(); queryno++)
+    for (uint64_t queryno = 0; queryno < parameters.querySequences.size(); queryno++)
     {
       cachedQueries[queryno] = std::make_unique<skch::CachedQueryData>(
-          skch::buildCachedQueryData(parameters, parameters.querySequences[queryno]));
+        skch::buildCachedQueryData(parameters, parameters.querySequences[queryno]));
     }
 
-    for(int batchStart = 0; batchStart < parameters.threads; batchStart += effectiveBatchSize)
+    for (int batchStart = 0; batchStart < referenceSplitCount; batchStart += effectiveBatchSize)
     {
-      const int batchEnd = std::min(batchStart + effectiveBatchSize, parameters.threads);
+      const int batchEnd = std::min(batchStart + effectiveBatchSize, referenceSplitCount);
 
-#pragma omp parallel for schedule(static,1) num_threads(batchEnd - batchStart)
+#pragma omp parallel for schedule(static, 1) num_threads(batchEnd - batchStart)
       for (int i = batchStart; i < batchEnd; i++)
         runReferenceSplit(static_cast<uint64_t>(i));
     }
   }
   else
   {
-#pragma omp parallel for schedule(static,1)
-    for (uint64_t i = 0; i < parameters.threads; i++)
+#pragma omp parallel for schedule(static, 1)
+    for (uint64_t i = 0; i < static_cast<uint64_t>(referenceSplitCount); i++)
       runReferenceSplit(i);
   }
 
   std::cerr << "INFO, skch::main, parallel_for execution finished" << std::endl;
 
-  if(parameters.loadSketchMode)
+  if (parameters.loadSketchMode)
   {
     size_t totalRefs = 0;
-    for(uint64_t i = 0; i < parameters.threads; i++)
+    for (int i = 0; i < referenceSplitCount; i++)
       totalRefs += parameters_split[i].refSequences.size();
 
     parameters.refSequences.assign(totalRefs, "");
     parameters.refSequenceLengths.assign(totalRefs, 0);
-  
-    for(uint64_t i = 0; i < parameters.threads; i++)
+
+    for (int i = 0; i < referenceSplitCount; i++)
     {
-      for(size_t localIdx = 0; localIdx < parameters_split[i].refSequences.size(); localIdx++)
+      for (size_t localIdx = 0; localIdx < parameters_split[i].refSequences.size(); localIdx++)
       {
-        size_t globalIdx = localIdx * static_cast<size_t>(parameters.threads) + static_cast<size_t>(i);
-        if(globalIdx < totalRefs)
+        size_t globalIdx =
+          localIdx * static_cast<size_t>(referenceSplitCount) + static_cast<size_t>(i);
+        if (globalIdx < totalRefs)
         {
           parameters.refSequences[globalIdx] = parameters_split[i].refSequences[localIdx];
-          if(localIdx < parameters_split[i].refSequenceLengths.size())
-            parameters.refSequenceLengths[globalIdx] = parameters_split[i].refSequenceLengths[localIdx];
+          if (localIdx < parameters_split[i].refSequenceLengths.size())
+            parameters.refSequenceLengths[globalIdx] =
+              parameters_split[i].refSequenceLengths[localIdx];
         }
       }
     }
   }
 
-  if(parameters.writeRefSketchMode)
+  if (parameters.writeRefSketchMode)
     return 0;
 
   // Merge per-thread results (single-threaded, deterministic)
   std::vector<cgi::CGI_Results> finalResults;
 
   size_t total = 0;
-  for(const auto &v : finalResults_by_thread)
+  for (const auto &v : finalResults_by_thread)
     total += v.size();
   finalResults.reserve(total);
 
-  for(auto &v : finalResults_by_thread)
+  for (auto &v : finalResults_by_thread)
     finalResults.insert(finalResults.end(), v.begin(), v.end());
 
-  for(auto i = 0; i < parameters.threads; i++)
+  for (int i = 0; i < referenceSplitCount; i++)
   {
-    if(sanityCheck[i] == false)
+    if (sanityCheck[i] == false)
     {
-      std::cerr << "ERROR :: SPLIT " << i << "'s ratio difference "
-                << ratioDiffs[i] << " exceeds maximum thresholds." << std::endl;
+      std::cerr << "ERROR :: SPLIT " << i << "'s ratio difference " << ratioDiffs[i]
+                << " exceeds maximum thresholds." << std::endl;
     }
   }
 
   std::unordered_map<std::string, uint64_t> genomeLengths;
   cgi::computeGenomeLengths(parameters, genomeLengths);
 
-  //report output in file
+  // report output in file
   cgi::outputCGI(parameters, genomeLengths, finalResults, fileName);
 
-  //report output as matrix
-  if(parameters.matrixOutput)
+  // report output as matrix
+  if (parameters.matrixOutput)
     cgi::outputPhylip(parameters, genomeLengths, finalResults, fileName);
 
-  if(parameters.visualize && parameters.threads > 1)
+  if (parameters.visualize && referenceSplitCount > 1)
   {
     std::string outVisFile = fileName + ".visual";
     std::ofstream ofile(outVisFile);
-    for(int i = 0; i < parameters.threads; i++)
+    for (int i = 0; i < referenceSplitCount; i++)
     {
       std::string visFileName = fileName + ".visual" + std::to_string(i);
       std::ifstream ifile(visFileName);
-      if(!ifile.good())
+      if (!ifile.good())
       {
         ifile.close();
         continue;
@@ -303,13 +334,14 @@ int core_genome_identity(int argc, char **argv)
 
       const int BUFFER_SIZE = 4096;
       std::vector<char> buffer(BUFFER_SIZE + 1, 0);
-      while(true)
+      while (true)
       {
         ifile.read(buffer.data(), BUFFER_SIZE);
         std::streamsize s = ((ifile) ? BUFFER_SIZE : ifile.gcount());
         buffer[s] = 0;
         ofile << buffer.data();
-        if(!ifile) break;
+        if (!ifile)
+          break;
       }
       ifile.close();
       unlink(visFileName.c_str());

@@ -104,15 +104,15 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 
 ### Output options
 
-| Parameter               | Default | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                |
-| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `-o, --output`          | `null`  | Write the main tabular ANI results to this file.                                                                                                                                                                                                                                                                                          | Use for all runs.                                                                          |
-| `--write-ref-sketch`    | `false` | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                |
-| `--matrix`              | `false` | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                  |
-| `--average-reciprocals` | `false` | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
-| `--visualize`           | `false` | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                             |
-| `--extended-metrics`    | `false` | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                   |
-| `--header`              | `false` | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                         |
+| Parameter               | Default  | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                |
+| ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `-o, --output`          | `stdout` | Write the main tabular ANI results to this file. If omitted, the main tabular output is written to standard output.                                                                                                                                                                                                                       | Use `-o` when you want a file on disk; omit it when piping results to another tool.        |
+| `--write-ref-sketch`    | `false`  | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                |
+| `--matrix`              | `false`  | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                  |
+| `--average-reciprocals` | `false`  | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
+| `--visualize`           | `false`  | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                             |
+| `--extended-metrics`    | `false`  | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                   |
+| `--header`              | `false`  | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                         |
 
 The main output is a tab-delimited file. Each row reports:
 
@@ -136,6 +136,15 @@ The main output is a tab-delimited file. Each row reports:
 > When `--average-reciprocals` is enabled, `ANI` and the `FragID_*` fields become reciprocal averages when both directions are present. `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to the displayed query/reference row and are not averaged.
 
 > No ANI output is reported for genome pairs whose ANI is much lower than 80%. For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
+
+<details>
+<summary>Example: stream output to another tool instead of writing <code>-o</code></summary>
+
+<pre><code class="language-sh">fastANI -q query.fa --refList references.txt |
+  sort -k3,3nr |
+  head -2</code></pre>
+
+</details>
 
 <details>
 <summary>Example: build a lower-triangular matrix from sparse output for any metric</summary>
@@ -421,6 +430,48 @@ For multi-genome runs, the `.visual` file may contain mappings for many genome p
 FastANI supports multi-threading via `-t, --threads`.
 
 For even larger workloads, users can also divide a large reference database into chunks and run multiple FastANI processes in parallel. The repository includes helper scripts for splitting databases for that purpose.
+
+<details>
+<summary>Example: minimal SGE array job template</summary>
+
+<pre><code class="language-bash">#!/bin/bash
+source /etc/profile
+
+#$ -N fastani-array
+#$ -cwd
+#$ -l h_rt=00:10:00
+#$ -l h_vmem=2G
+#$ -q short.q
+#$ -o logs/$JOB_NAME.$JOB_ID.$TASK_ID.out
+#$ -e logs/$JOB_NAME.$JOB_ID.$TASK_ID.err
+#$ -t 1-10
+
+set -euo pipefail
+mkdir -p logs results
+
+# Replace this command with the real work for each task.
+echo "task=${SGE_TASK_ID}" > "results/task_${SGE_TASK_ID}.txt"</code></pre>
+
+</details>
+
+<details>
+<summary>Example: minimal SLURM array job template</summary>
+
+<pre><code class="language-bash">#!/bin/bash
+#SBATCH --job-name=fastani-array
+#SBATCH --time=00:10:00
+#SBATCH --mem=2G
+#SBATCH --output=logs/%x.%A.%a.out
+#SBATCH --error=logs/%x.%A.%a.err
+#SBATCH --array=1-10
+
+set -euo pipefail
+mkdir -p logs results
+
+# Replace this command with the real work for each task.
+echo "task=${SLURM_ARRAY_TASK_ID}" > "results/task_${SLURM_ARRAY_TASK_ID}.txt"</code></pre>
+
+</details>
 
 ### Compatibility notes
 
