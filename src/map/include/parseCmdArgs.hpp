@@ -106,7 +106,10 @@ void printCmdOptions(skch::Parameters &parameters)
     std::cerr << "Sketch batch size = " << parameters.batchSize << std::endl;
   else
     std::cerr << "Sketch batch size = all shards" << std::endl;
-  std::cerr << "ANI output file = " << parameters.outFileName << std::endl;
+  if (parameters.outFileName.empty())
+    std::cerr << "ANI output file = stdout" << std::endl;
+  else
+    std::cerr << "ANI output file = " << parameters.outFileName << std::endl;
   std::cerr << "Sanity Check  = " << parameters.sanityCheck << std::endl;
   std::cerr << ">>>>>>>>>>>>>>>>>>" << std::endl;
 }
@@ -160,7 +163,7 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
   // OUTPUT OPTIONS
   auto output_cmd =
     (clipp::option("-o", "--output") & clipp::value("value", parameters.outFileName)) %
-    "output file name";
+    "output file name [optional; defaults to stdout for the main tabular output]";
   auto write_ref_sketch_cmd =
     (clipp::option("--write-ref-sketch") & clipp::value("value", parameters.writeRefSketchFile)) %
     "write reference sketches to file and exit; requires --ref/--refList and does not use query "
@@ -323,13 +326,6 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
       std::cerr << "ERROR, --batch-size must be at least 1 when provided\n";
       exit(1);
     }
-
-    if (parameters.batchSize > parameters.threads)
-    {
-      std::cerr << "INFO, --batch-size exceeds the number of sketch shards; using "
-                << parameters.threads << " instead\n";
-      parameters.batchSize = parameters.threads;
-    }
   }
 
   if (!parameters.loadSketchMode && refName == "" && refList == "")
@@ -341,6 +337,13 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
   if (!parameters.writeRefSketchMode && qryName == "" && qryList == "")
   {
     std::cerr << "Provide query file (s)\n";
+    exit(1);
+  }
+
+  if (parameters.outFileName.empty() && (parameters.matrixOutput || parameters.visualize))
+  {
+    std::cerr << "ERROR, --matrix and --visualize require -o/--output because they write "
+                 "sidecar files\n";
     exit(1);
   }
 

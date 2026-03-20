@@ -48,8 +48,9 @@ struct Parameters
   bool header = false;             // write a header row in tabular output
   int batchSize =
     0; // load sketch bins in batches during sketch-backed querying; 0 means load all shards at once
-  float maxRatioDiff; // max Ratio for sanity check
-  bool sanityCheck;   // Sanity check for extreme Cases
+  int sketchShardCount = 0; // number of prebuilt sketch shards discovered for --sketch inputs
+  float maxRatioDiff;       // max Ratio for sanity check
+  bool sanityCheck;         // Sanity check for extreme Cases
 };
 } // namespace skch
 

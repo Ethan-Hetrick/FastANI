@@ -104,38 +104,47 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 
 ### Output options
 
-| Parameter               | Default | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                |
-| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `-o, --output`          | `null`  | Write the main tabular ANI results to this file.                                                                                                                                                                                                                                                                                          | Use for all runs.                                                                          |
-| `--write-ref-sketch`    | `false` | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                |
-| `--matrix`              | `false` | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                  |
-| `--average-reciprocals` | `false` | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
-| `--visualize`           | `false` | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                             |
-| `--extended-metrics`    | `false` | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                   |
-| `--header`              | `false` | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                         |
+| Parameter               | Default  | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                |
+| ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `-o, --output`          | `stdout` | Write the main tabular ANI results to this file. If omitted, the main tabular output is written to standard output.                                                                                                                                                                                                                       | Use `-o` when you want a file on disk; omit it when piping results to another tool.        |
+| `--write-ref-sketch`    | `false`  | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                |
+| `--matrix`              | `false`  | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                  |
+| `--average-reciprocals` | `false`  | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
+| `--visualize`           | `false`  | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                             |
+| `--extended-metrics`    | `false`  | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                   |
+| `--header`              | `false`  | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                         |
 
 The main output is a tab-delimited file. Each row reports:
 
-| Field                        | Description                                                                                                                            |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Query                        | Query genome path or identifier                                                                                                        |
-| Reference                    | Reference genome path or identifier                                                                                                    |
-| ANI                          | Estimated average nucleotide identity between the genome pair                                                                          |
-| MatchedFragments             | Number of bidirectional fragment mappings supporting the ANI estimate                                                                  |
-| TotalQueryFragments          | Total number of query fragments considered for the comparison                                                                          |
-| QueryAlignmentFraction\*     | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`)                      |
-| ReferenceAlignmentFraction\* | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`) |
-| FragID_F99\*                 | Fraction of mapped fragments with ANI at or above 99%                                                                                  |
-| FragID_Stdev\*               | Standard deviation of fragment-level ANI values                                                                                        |
-| FragID_Q1\*                  | First quartile of fragment-level ANI values                                                                                            |
-| FragID_Median\*              | Median fragment-level ANI value                                                                                                        |
-| FragID_Q3\*                  | Third quartile of fragment-level ANI values                                                                                            |
+| Field                        | Description                                                                                                                                                                                                               |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Query                        | Query genome path or identifier                                                                                                                                                                                           |
+| Reference                    | Reference genome path or identifier                                                                                                                                                                                       |
+| ANI                          | Estimated average nucleotide identity between the genome pair; primary whole-genome similarity summary                                                                                                                    |
+| MatchedFragments             | Number of bidirectional fragment mappings supporting the ANI estimate                                                                                                                                                     |
+| TotalQueryFragments          | Total number of query fragments considered for the comparison                                                                                                                                                             |
+| QueryAlignmentFraction\*     | Fraction of query fragments that participate in bidirectional mappings (`MatchedFragments / TotalQueryFragments`); useful for judging whether ANI is supported across enough of the query genome                          |
+| ReferenceAlignmentFraction\* | Approximate fraction of the reference genome covered by matched query fragments (`MatchedFragments * fragLen / ReferenceGenomeLength`); useful for judging whether ANI is supported across enough of the reference genome |
+| FragID_F99\*                 | Fraction of mapped fragments with ANI at or above 99%; unusually high values can suggest HGT or other unusually conserved regions                                                                                         |
+| FragID_Stdev\*               | Standard deviation of fragment-level ANI values                                                                                                                                                                           |
+| FragID_Q1\*                  | First quartile of fragment-level ANI values; unusually low values can suggest contamination or mixed signal                                                                                                               |
+| FragID_Median\*              | Median fragment-level ANI value; a useful robust summary when ANI may be pulled by abundant outlier fragments                                                                                                             |
+| FragID_Q3\*                  | Third quartile of fragment-level ANI values                                                                                                                                                                               |
 
 > Asterisk (`*`) indicates fields that are included only when `--extended-metrics` is enabled.
 
 > When `--average-reciprocals` is enabled, `ANI` and the `FragID_*` fields become reciprocal averages when both directions are present. `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to the displayed query/reference row and are not averaged.
 
 > No ANI output is reported for genome pairs whose ANI is much lower than 80%. For those comparisons, amino-acid-level approaches such as [AAI](http://enve-omics.ce.gatech.edu/aai/) are more appropriate.
+
+<details>
+<summary>Example: stream output to another tool instead of writing <code>-o</code></summary>
+
+<pre><code class="language-sh">fastANI -q query.fa --refList references.txt |
+  sort -k3,3nr |
+  head -2</code></pre>
+
+</details>
 
 <details>
 <summary>Example: build a lower-triangular matrix from sparse output for any metric</summary>
@@ -416,13 +425,71 @@ For multi-genome runs, the `.visual` file may contain mappings for many genome p
   />
 </p>
 
-## Parallelization
+## Scalability
 
 FastANI supports multi-threading via `-t, --threads`.
 
-For even larger workloads, users can also divide a large reference database into chunks and run multiple FastANI processes in parallel. The repository includes helper scripts for splitting databases for that purpose.
+For high-throughput workloads, users can split query lists across many scheduler tasks and run them against the same reference sketch in parallel. Using sketch-backed queries with `--batch-size 1` keeps per-task memory requirements low, which makes this approach easier to scale across many nodes.
 
-### Compatibility notes
+> This pattern also fits naturally into workflow managers such as Nextflow or Snakemake.
+
+<details>
+<summary>Example: minimal SGE array job template</summary>
+
+<pre><code class="language-bash">#!/bin/bash
+source /etc/profile
+
+#$ -N fastani-array
+#$ -cwd
+#$ -l h_rt=00:10:00
+#$ -l h_vmem=2G
+#$ -q short.q
+#$ -o logs/$JOB_NAME.$JOB_ID.$TASK_ID.out
+#$ -e logs/$JOB_NAME.$JOB_ID.$TASK_ID.err
+#$ -t 1-10
+
+set -euo pipefail
+mkdir -p logs results
+
+# One query per task against a shared reference sketch.
+query=$(sed -n "${SGE_TASK_ID}p" queries.txt)
+
+fastANI \
+  -q "$query" \
+  --sketch reference_sketch \
+  --batch-size 1 \
+  -t 1 \
+  > "results/task_${SGE_TASK_ID}.tsv"</code></pre>
+
+</details>
+
+<details>
+<summary>Example: minimal SLURM array job template</summary>
+
+<pre><code class="language-bash">#!/bin/bash
+#SBATCH --job-name=fastani-array
+#SBATCH --time=00:10:00
+#SBATCH --mem=2G
+#SBATCH --output=logs/%x.%A.%a.out
+#SBATCH --error=logs/%x.%A.%a.err
+#SBATCH --array=1-10
+
+set -euo pipefail
+mkdir -p logs results
+
+# One query per task against a shared reference sketch.
+query=$(sed -n "${SLURM_ARRAY_TASK_ID}p" queries.txt)
+
+fastANI \
+  -q "$query" \
+  --sketch reference_sketch \
+  --batch-size 1 \
+  -t 1 \
+  > "results/task_${SLURM_ARRAY_TASK_ID}.tsv"</code></pre>
+
+</details>
+
+### Note on Parameter Interoperability
 
 Only options with limited interoperability are listed here. `✓` means the combination is supported. `X` means the combination is incompatible or not applicable.
 
@@ -453,9 +520,18 @@ In practice, this difference is usually small. When `--matrix` output is request
 
 If you want a sparse tabular output with one row per reciprocal genome pair, use `--average-reciprocals`. It averages `ANI` and the `FragID_*` fragment-summary fields across the two directions, while keeping `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` tied to the displayed query/reference orientation.
 
-### Input quality guidance
+### Biological Reasons For Unexpected ANI Values
 
-Input quality matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
+- Input quality still matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
+- Comparisons with less than about 80% fragment-level alignment coverage are often less reliable to interpret as whole-genome ANI summaries, because too little of the genomes is contributing to the estimate. When available, review `QueryAlignmentFraction` and `ReferenceAlignmentFraction` alongside ANI.
+- Horizontal gene transfer can artificially inflate ANI values for some genome pairs, especially when recent gene exchange causes portions of otherwise more distant genomes to appear unusually similar.
+
+The extended metrics can be very helpful when interpreting the biological significance of an ANI value.
+
+- Watch `QueryAlignmentFraction` and `ReferenceAlignmentFraction` alongside ANI. A high ANI computed from a small aligned fraction is easier to overinterpret than a similarly high ANI supported across most of both genomes.
+- Abnormally high `FragID_F99` values can be a clue that horizontal gene transfer or other unusually conserved regions are inflating the apparent similarity between two genomes.
+- Very low `FragID_Q1` values can be a clue that part of the comparison is being pulled down by contamination or another mixed source. In that situation, contamination can artificially drive the ANI estimate lower than expected for the main organismal signal.
+- As a quick-and-dirty check, compare `FragID_Median` with ANI. If the gap is large, `FragID_Median` can sometimes be a better species-identification signal than ANI when horizontal gene transfer, contamination, or other outlier fragments are especially abundant in the comparison.
 
 ### Out-of-memory errors
 

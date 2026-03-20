@@ -12,6 +12,7 @@ on:
 env:
   # CMake build type (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Debug
+  CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
 
 jobs:
   Build-Test:
@@ -25,6 +26,14 @@ jobs:
           submodules: recursive
           lfs: true
           fetch-depth: 0
+      - name: Set up Miniconda for pinned clang-format
+        uses: conda-incubator/setup-miniconda@v3
+        with:
+          activate-environment: ci-format
+          auto-update-conda: true
+          channels: conda-forge
+          channel-priority: strict
+          python-version: "3.11"
       - name: Set up Node.js
         uses: actions/setup-node@v5
         with:
@@ -61,16 +70,25 @@ jobs:
               lines.insert(insert_at, include)
               path.write_text("".join(lines))
           PY
-      - name: Install zlib, gsl, cppcheck, lcov, and clang-format
+      - name: Install zlib, gsl, cppcheck, and lcov
         run: |
           sudo apt-get update
-          sudo apt-get install zlib1g-dev libgsl-dev cppcheck lcov clang-format
+          sudo apt-get install zlib1g-dev libgsl-dev cppcheck lcov
+      - name: Install pinned clang-format
+        shell: bash -el {0}
+        run: conda install -y clang-format=22.1.0
       - name: Install Prettier
         run: npm install --global prettier
+      - name: Show pinned clang-format version
+        shell: bash -el {0}
+        run: clang-format --version
       - name: Check documentation and workflow formatting
         run: scripts/precommit_run_prettier.sh
       - name: Check C/C++ formatting
-        run: scripts/precommit_check_clang_format.sh
+        shell: bash -el {0}
+        run: |
+          export FASTANI_CLANG_FORMAT_BIN="$(command -v clang-format)"
+          scripts/precommit_check_clang_format.sh
       # Static Analysis with cppcheck
       - name: cppcheck
         run: cppcheck --enable=all --inconclusive --force --std=c++20 -iext/ -I src/ --output-file=cppcheck_report.txt .
@@ -96,13 +114,13 @@ jobs:
         run: make lcov2
       # Uploading to Codecov
       - name: Note skipped Codecov upload
-        if: ${{ secrets.CODECOV_TOKEN == '' }}
+        if: ${{ env.CODECOV_TOKEN == '' }}
         run: echo "CODECOV_TOKEN is not configured for this workflow context; skipping Codecov upload."
       - name: Upload coverage reports to codecov.io
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
+        if: ${{ env.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v5
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
+          token: ${{ env.CODECOV_TOKEN }}
           files: ${{github.workspace}}/build/coverage.info
           fail_ci_if_error: false
           verbose: true
