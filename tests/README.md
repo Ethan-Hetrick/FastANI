@@ -223,7 +223,7 @@ Observed result:
 - both rebuilds produced the same MD5:
 
 ```text
-a9e1703d34e3a835e444dda350722a54
+e354004d848d6a312118457ef5358b67
 ```
 
 - both sketch files were `71059244` bytes
