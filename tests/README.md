@@ -47,6 +47,8 @@ When adding a new validation entry:
 | Duplicate genome entries in list file         | `848cbc3`     | Pass with caveat | Duplicate entries are not deduplicated                           |
 | `.visual` output with duplicated contig names | `848cbc3`     | Pass with caveat | Main metrics matched; duplicated headers reduce interpretability |
 | Extended-metrics sketch parity                | `848cbc3`     | Pass             | Sketch and no-sketch extended metrics matched                    |
+| Mid-range ANI regression fixture              | `b5b94f3`     | Pass             | Real archived pair reproduced at `89.8641` ANI                   |
+| Sketch MD5 reproducibility sentinel           | `b5b94f3`     | Pass             | Two rebuilds produced identical sketch bytes                     |
 
 ## Build prerequisite for the manual checks below
 
@@ -110,6 +112,133 @@ Interpretation:
   sized-shard regression case
 
 ## Manual edge-case validations
+
+### Mid-range ANI regression fixture from archived results
+
+Commit tested: `b5b94f3`
+
+Purpose:
+
+- promote one real historical comparison in the previously under-tested
+  middle ANI range into committed test data
+
+Archived source used:
+
+- `benchmark/new_release_nosketch_1v_all.out`
+- `benchmark/old_release_1v_all.out`
+
+Selected pair:
+
+- query: `tests/data/Shigella_flexneri_2a_01.fna`
+- reference:
+  `tests/data/Escherichia_albertii_CP024282.fna`
+
+Why this pair was selected:
+
+- archived outputs agreed exactly on the result
+- it sits in the previously under-covered `80-95%` band
+- it has substantial support, not just a threshold-level single fragment
+
+Archived and reproduced result:
+
+```text
+89.8641    1180    1608
+```
+
+Procedure:
+
+```sh
+cp /scicomp/reference-pure/Kalamari/Kalamari/Escherichia/albertii/CP024282.fasta \
+  tests/data/Escherichia_albertii_CP024282.fna
+
+build/fastANI \
+  -q tests/data/Shigella_flexneri_2a_01.fna \
+  -r tests/data/Escherichia_albertii_CP024282.fna \
+  -o tests/data/shigella_vs_escherichia_albertii_cp024282.txt
+```
+
+Observed result:
+
+- rerun matched the archived ANI value exactly
+- rerun matched the archived fragment counts exactly
+
+Interpretation:
+
+- this is now the committed mid-range regression fixture for future correctness
+  work
+- it provides a more meaningful non-`>97%` positive-control case than the
+  existing very-high-ANI D4 set alone
+
+### Sketch MD5 reproducibility sentinel
+
+Commit tested: `b5b94f3`
+
+Purpose:
+
+- provide a small serialization sentinel for sketch rebuilds on a fixed test
+  reference set
+- detect accidental sketch-format or build-order drift in addition to the normal
+  output-based regression checks
+
+Important note:
+
+- this is a secondary guardrail only
+- matching sketch bytes does not replace output-based correctness tests
+- differing sketch bytes do not automatically imply wrong ANI output
+
+Committed inputs:
+
+- `tests/data/sketch_regression_refs.txt`
+- `tests/data/sketch_regression_expected.md5`
+
+Reference set:
+
+- `tests/data/D4/2000031001.LargeContigs.fna`
+- `tests/data/D4/2000031004.LargeContigs.fna`
+- `tests/data/D4/2000031008.LargeContigs.fna`
+- `tests/data/D4/2000031009.LargeContigs.fna`
+- `tests/data/Escherichia_coli_str_K12_MG1655.fna`
+- `tests/data/Shigella_flexneri_2a_01.fna`
+- `tests/data/Escherichia_albertii_CP024282.fna`
+
+Deterministic rebuild command:
+
+```sh
+build/fastANI \
+  --rl tests/data/sketch_regression_refs.txt \
+  --write-ref-sketch sketch_regression \
+  -t 1
+```
+
+Observed validation procedure:
+
+```sh
+tmp1=$(mktemp -d /tmp/fastani-sketchcheck1-XXXXXX)
+tmp2=$(mktemp -d /tmp/fastani-sketchcheck2-XXXXXX)
+
+build/fastANI --rl tests/data/sketch_regression_refs.txt --write-ref-sketch "$tmp1/test_sketch" -t 1
+build/fastANI --rl tests/data/sketch_regression_refs.txt --write-ref-sketch "$tmp2/test_sketch" -t 1
+
+md5sum "$tmp1/test_sketch.0"
+md5sum "$tmp2/test_sketch.0"
+```
+
+Observed result:
+
+- both rebuilds produced the same MD5:
+
+```text
+a9e1703d34e3a835e444dda350722a54
+```
+
+- both sketch files were `71059244` bytes
+
+Interpretation:
+
+- for this fixed input set and single-threaded build recipe, sketch
+  serialization was stable across repeated rebuilds
+- future changes should preserve this hash unless sketch serialization is
+  intentionally changed
 
 ### FASTA contig-header robustness
 

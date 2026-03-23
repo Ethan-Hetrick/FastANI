@@ -1,0 +1,7 @@
+tests/data/D4/2000031001.LargeContigs.fna
+tests/data/D4/2000031004.LargeContigs.fna
+tests/data/D4/2000031008.LargeContigs.fna
+tests/data/D4/2000031009.LargeContigs.fna
+tests/data/Escherichia_coli_str_K12_MG1655.fna
+tests/data/Shigella_flexneri_2a_01.fna
+tests/data/Escherichia_albertii_CP024282.fna

@@ -1,0 +1,4 @@
+# Expected MD5 for a deterministic single-threaded sketch rebuild.
+# Rebuild command:
+#   build/fastANI --rl tests/data/sketch_regression_refs.txt --write-ref-sketch sketch_regression -t 1
+a9e1703d34e3a835e444dda350722a54  sketch_regression.0

@@ -122,6 +122,29 @@ TEST_CASE("Single Threaded Pair Query Ref", "[single threaded pair]")
   REQUIRE(fx == ref_fx);
 }
 
+TEST_CASE("Single Threaded Pair Query Ref Mid-Range ANI", "[single threaded pair][mid-range ani]")
+{
+  const char *argv[] = {"single-pair-mid-range",
+                        "-q",
+                        "data/Shigella_flexneri_2a_01.fna",
+                        "-r",
+                        "data/Escherichia_albertii_CP024282.fna",
+                        "-o",
+                        "midrange-pair-test.txt"};
+  core_genome_identity(7, const_cast<char **>(argv));
+
+  auto finalResults = read_fastani_output("midrange-pair-test.txt");
+  REQUIRE(finalResults.size() == 1);
+  REQUIRE(finalResults[0].identity > 89.8640);
+  REQUIRE(finalResults[0].identity < 89.8642);
+  REQUIRE(finalResults[0].countSeq == 1180);
+  REQUIRE(finalResults[0].totalQueryFragments == 1608);
+
+  auto fx = get_file_contents("midrange-pair-test.txt");
+  auto ref_fx = get_file_contents("data/shigella_vs_escherichia_albertii_cp024282.txt");
+  REQUIRE(fx == ref_fx);
+}
+
 TEST_CASE("Single Threaded Multi Query", "[single threaded multi query]")
 {
   // -q [QUERY_GENOME] -r [REFERENCE_GENOME] -o [OUTPUT_FILE]
