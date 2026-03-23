@@ -29,6 +29,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
 
 ## Correctness And Behavioral Fixes
 
+- Fixed a stale `contigToGenomeId` cache in batched sketch-backed execution and corrected mixed-case sequence normalization for minimizer generation.
+  Why: batched sketch runs could silently reuse the wrong contig-to-genome mapping when two shards had the same contig count, and mixed-case sequence beyond the first 4096 bases could bypass uppercasing and alter hashing.
+  Validation: added targeted regression tests for batched sketch parity and mixed-case query equivalence in `tests/fastani_tests.cpp`.
+
 - Restored the missing query-bucket reduction stage in `computeCGI`, fixing incorrect two-way ANI behavior after earlier optimization work.
   Why: performance work is only useful if the core reciprocal ANI result remains correct.
   Related commit: `e2df7e7`

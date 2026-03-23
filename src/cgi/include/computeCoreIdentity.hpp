@@ -36,22 +36,19 @@ void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::S
 
   const size_t numContigs = refSketch.metadata.size();
 
-  if (contigToGenomeId.size() != numContigs)
+  contigToGenomeId.assign(numContigs, -1);
+
+  size_t start = 0;
+  for (size_t genomeId = 0; genomeId < refSketch.sequencesByFileInfo.size(); genomeId++)
   {
-    contigToGenomeId.assign(numContigs, -1);
+    const size_t end = static_cast<size_t>(refSketch.sequencesByFileInfo[genomeId]);
 
-    size_t start = 0;
-    for (size_t genomeId = 0; genomeId < refSketch.sequencesByFileInfo.size(); genomeId++)
+    for (size_t contigId = start; contigId < end && contigId < numContigs; contigId++)
     {
-      const size_t end = static_cast<size_t>(refSketch.sequencesByFileInfo[genomeId]);
-
-      for (size_t contigId = start; contigId < end && contigId < numContigs; contigId++)
-      {
-        contigToGenomeId[contigId] = static_cast<int>(genomeId);
-      }
-
-      start = end;
+      contigToGenomeId[contigId] = static_cast<int>(genomeId);
     }
+
+    start = end;
   }
 
   for (auto &r : shortResults)
