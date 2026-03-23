@@ -1,0 +1,1 @@
+data/Shigella_flexneri_2a_01.fna	data/Escherichia_albertii_CP024282.fna	89.8641	1180	1608

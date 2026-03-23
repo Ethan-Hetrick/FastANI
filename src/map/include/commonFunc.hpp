@@ -3,7 +3,7 @@
  * @author  Chirag Jain <cjain7@gatech.edu>
  */
 
-#ifndef COMMON_FUNC_HPP 
+#ifndef COMMON_FUNC_HPP
 #define COMMON_FUNC_HPP
 
 #include <vector>
@@ -12,88 +12,95 @@
 #include <cmath>
 #include <fstream>
 
-//Own includes
+// Own includes
 #include "map/include/map_parameters.hpp"
 
-//External includes
+// External includes
 #include "common/murmur3.h"
 #include "common/kseq.h"
 #include "common/prettyprint.hpp"
 
 namespace skch
 {
-  /**
-   * @namespace skch::CommonFunc
-   * @brief     Implements frequently used common functions
-   */
-  namespace CommonFunc
+/**
+ * @namespace skch::CommonFunc
+ * @brief     Implements frequently used common functions
+ */
+namespace CommonFunc
+{
+// seed for murmerhash
+const int seed = 42;
+
+/**
+ * @brief   reverse complement of kmer (borrowed from mash)
+ */
+inline void reverseComplement(const char *src, char *dest, int length)
+{
+  for (int i = 0; i < length; i++)
   {
-    //seed for murmerhash
-    const int seed = 42;
+    char base = src[i];
 
-    /**
-     * @brief   reverse complement of kmer (borrowed from mash)
-     */
-    inline void reverseComplement(const char * src, char * dest, int length) 
+    switch (base)
     {
-      for ( int i = 0; i < length; i++ )
-      {    
-        char base = src[i];
-
-        switch ( base )
-        {    
-          case 'A': base = 'T'; break;
-          case 'C': base = 'G'; break;
-          case 'G': base = 'C'; break;
-          case 'T': base = 'A'; break;
-          default: break;
-        }    
-
-        dest[length - i - 1] = base;
-      }    
+    case 'A':
+      base = 'T';
+      break;
+    case 'C':
+      base = 'G';
+      break;
+    case 'G':
+      base = 'C';
+      break;
+    case 'T':
+      base = 'A';
+      break;
+    default:
+      break;
     }
 
-    template <typename KSEQ>
-      inline void makeUpperCase(KSEQ kseq)
-      {
-        for ( int i = 0; i < kseq->seq.l; i++ )
-        {
-          if (kseq->seq.s[i] > 96 && kseq->seq.s[i] < 123)
-          {
-            kseq->seq.s[i] -= 32;
-          }
-        }
-      }
+    dest[length - i - 1] = base;
+  }
+}
 
-    /**
-     * @brief   hashing kmer string (borrowed from mash)
-     */
-    inline hash_t getHash(const char * seq, int length)
+template <typename KSEQ> inline void makeUpperCase(KSEQ kseq)
+{
+  for (int i = 0; i < kseq->seq.l; i++)
+  {
+    if (kseq->seq.s[i] > 96 && kseq->seq.s[i] < 123)
     {
-      char data[16];
-      MurmurHash3_x64_128(seq, length, seed, data);
-
-      hash_t hash;
-
-      hash = *((hash_t *)data);
-
-      return hash;
+      kseq->seq.s[i] -= 32;
     }
+  }
+}
 
-    /**
-     * @brief       compute winnowed minimizers from a given sequence and add to the index
-     * @param[out]  minimizerIndex  minimizer table storing minimizers and their position as we compute them
-     * @param[in]   seq             kseq fasta/q parser
-     * @param[in]   kmerSize
-     * @param[in]   windowSize
-     * @param[in]   seqCounter      current sequence number, used while saving the position of minimizer
-     */
-    
+/**
+ * @brief   hashing kmer string (borrowed from mash)
+ */
+inline hash_t getHash(const char *seq, int length)
+{
+  char data[16];
+  MurmurHash3_x64_128(seq, length, seed, data);
+
+  hash_t hash;
+
+  hash = *((hash_t *)data);
+
+  return hash;
+}
+
+/**
+ * @brief       compute winnowed minimizers from a given sequence and add to the index
+ * @param[out]  minimizerIndex  minimizer table storing minimizers and their position as we compute
+ * them
+ * @param[in]   seq             kseq fasta/q parser
+ * @param[in]   kmerSize
+ * @param[in]   windowSize
+ * @param[in]   seqCounter      current sequence number, used while saving the position of minimizer
+ */
+
 template <typename T, typename KSEQ>
-  inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize,
-      int windowSize,
-      int alphabetSize,
-      seqno_t seqCounter)
+inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize, int windowSize,
+                          int alphabetSize, seqno_t seqCounter)
 {
   /**
    * Double-ended queue (saves minimum at front end)
@@ -114,75 +121,80 @@ template <typename T, typename KSEQ>
 
   // PERF: avoid uppercasing if sequence already appears uppercase
   bool needsUpper = false;
-  const int scan = std::min<int>(kseq->seq.l, 4096);
-  for(int j = 0; j < scan; j++)
+  const int scan = static_cast<int>(kseq->seq.l);
+  for (int j = 0; j < scan; j++)
   {
     char c = kseq->seq.s[j];
-    if(c >= 'a' && c <= 'z') { needsUpper = true; break; }
+    if (c >= 'a' && c <= 'z')
+    {
+      needsUpper = true;
+      break;
+    }
   }
-  if(needsUpper)
+  if (needsUpper)
     makeUpperCase(kseq);
 
-  //length of the sequence
+  // length of the sequence
   offset_t len = kseq->seq.l;
 
-  //Compute reverse complement of seq (reuse buffer to avoid per-call heap alloc)
+  // Compute reverse complement of seq (reuse buffer to avoid per-call heap alloc)
   static thread_local std::vector<char> seqRevBuf;
   char *seqRev = nullptr;
 
-  if(alphabetSize == 4) //not protein
+  if (alphabetSize == 4) // not protein
   {
-    if(seqRevBuf.size() < static_cast<size_t>(len))
+    if (seqRevBuf.size() < static_cast<size_t>(len))
       seqRevBuf.resize(static_cast<size_t>(len));
     seqRev = seqRevBuf.data();
 
     CommonFunc::reverseComplement(kseq->seq.s, seqRev, len);
   }
 
-  for(offset_t i = 0; i < len - kmerSize + 1; i++)
+  for (offset_t i = 0; i < len - kmerSize + 1; i++)
   {
-    //The serial number of current sliding window
-    //First valid window appears when i = windowSize - 1
+    // The serial number of current sliding window
+    // First valid window appears when i = windowSize - 1
     offset_t currentWindowId = i - windowSize + 1;
 
-    //Hash kmers
+    // Hash kmers
     hash_t hashFwd = CommonFunc::getHash(kseq->seq.s + i, kmerSize);
     hash_t hashBwd;
 
-    if(alphabetSize == 4)
+    if (alphabetSize == 4)
       hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
-    else  //proteins
-      hashBwd = std::numeric_limits<hash_t>::max();   //Pick a dummy high value so that it is ignored later
+    else // proteins
+      hashBwd =
+        std::numeric_limits<hash_t>::max(); // Pick a dummy high value so that it is ignored later
 
-    //Consider non-symmetric kmers only
-    if(hashBwd != hashFwd)
+    // Consider non-symmetric kmers only
+    if (hashBwd != hashFwd)
     {
-      //Take minimum value of kmer and its reverse complement
+      // Take minimum value of kmer and its reverse complement
       hash_t currentKmer = std::min(hashFwd, hashBwd);
 
-      //If front minimum is not in the current window, remove it
-      while(!Q.empty() && Q.front().kmerPos <= i - windowSize)
+      // If front minimum is not in the current window, remove it
+      while (!Q.empty() && Q.front().kmerPos <= i - windowSize)
         Q.pop_front();
 
-      //Hashes less than equal to currentKmer are not required
-      //Remove them from Q (back)
-      while(!Q.empty() && Q.back().hash >= currentKmer)
+      // Hashes less than equal to currentKmer are not required
+      // Remove them from Q (back)
+      while (!Q.empty() && Q.back().hash >= currentKmer)
         Q.pop_back();
 
-      //Push currentKmer and position to back of the queue
+      // Push currentKmer and position to back of the queue
       //-1 indicates the dummy window # (will be updated later)
       Q.push_back(WindowMinimizer{currentKmer, i, -1});
 
-      //Select the minimizer from Q and put into index
-      if(currentWindowId >= 0)
+      // Select the minimizer from Q and put into index
+      if (currentWindowId >= 0)
       {
         const MinimizerInfo frontInfo{Q.front().hash, seqCounter, Q.front().emittedWpos};
 
-        //We save the minimizer if we are seeing it for first time
-        if(minimizerIndex.empty() || minimizerIndex.back() != frontInfo)
+        // We save the minimizer if we are seeing it for first time
+        if (minimizerIndex.empty() || minimizerIndex.back() != frontInfo)
         {
-          //Update the window position in this minimizer
-          //This step also ensures we don't re-insert the same minimizer again
+          // Update the window position in this minimizer
+          // This step also ensures we don't re-insert the same minimizer again
           Q.front().emittedWpos = currentWindowId;
           minimizerIndex.push_back(MinimizerInfo{Q.front().hash, seqCounter, currentWindowId});
         }
@@ -191,88 +203,82 @@ template <typename T, typename KSEQ>
   }
 }
 
-    /**
-     * @brief       overloaded function for case where seq. counter does not matter
-     */
-    template <typename T, typename KSEQ>
-      inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize,
-          int windowSize, 
-          int alphabetSize)
-      {
-        addMinimizers(minimizerIndex, kseq, kmerSize, windowSize, alphabetSize, 0);
-      }
-
-   /**
-     * @brief           Functor for comparing tuples by single index layer
-     * @tparam layer    Tuple's index which is used for comparison
-     * @tparam op       comparator, default as std::less
-     */
-    template <size_t layer, template<typename> class op = std::less>
-      struct TpleComp
-      {
-        //Compare two tuples using their values
-        template<typename T>
-          bool operator() (T const &t1, T const &t2)
-          {
-            return op<typename std::tuple_element<layer, T>::type>() (std::get<layer>(t1), std::get<layer>(t2));
-          }
-      };
-
-    /**
-     * @brief                   computes the total size of reference in bytes
-     * @param[in] refSequences  vector of reference files
-     * @return                  total size
-     */
-    inline uint64_t getReferenceSize(const std::vector<std::string> &refSequences)
-    {
-      uint64_t count = 0;
-
-      for(auto &f : refSequences)
-      {
-        //Open the file as binary, and set the position to end
-        std::ifstream in(f, std::ifstream::ate | std::ifstream::binary);
-
-        //the position of the current character
-        count += (uint64_t)(in.tellg());
-      }
-
-      return count;
-    }
-
-
-    /**
-     * @brief               trim white spaces from start of the string
-     * @param[in/out]   s
-     */
-    inline void ltrim(std::string &s) 
-    {
-      s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) {
-            return !std::isspace(ch);
-            }));
-    }
-
-    /**
-     * @brief               trim white spaces from end of the string
-     * @param[in/out]   s
-     */
-    inline void rtrim(std::string &s) 
-    {
-      s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) {
-            return !std::isspace(ch);
-            }).base(), s.end());
-    }
-
-    /**
-     * @brief               trim white spaces from start and end of 
-     *                      the input string
-     * @param[in/out]   s
-     */
-    inline void trim(std::string &s) 
-    {
-      ltrim(s);
-      rtrim(s);
-    }
-  }
+/**
+ * @brief       overloaded function for case where seq. counter does not matter
+ */
+template <typename T, typename KSEQ>
+inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSize, int windowSize,
+                          int alphabetSize)
+{
+  addMinimizers(minimizerIndex, kseq, kmerSize, windowSize, alphabetSize, 0);
 }
+
+/**
+ * @brief           Functor for comparing tuples by single index layer
+ * @tparam layer    Tuple's index which is used for comparison
+ * @tparam op       comparator, default as std::less
+ */
+template <size_t layer, template <typename> class op = std::less> struct TpleComp
+{
+  // Compare two tuples using their values
+  template <typename T> bool operator()(T const &t1, T const &t2)
+  {
+    return op<typename std::tuple_element<layer, T>::type>()(std::get<layer>(t1),
+                                                             std::get<layer>(t2));
+  }
+};
+
+/**
+ * @brief                   computes the total size of reference in bytes
+ * @param[in] refSequences  vector of reference files
+ * @return                  total size
+ */
+inline uint64_t getReferenceSize(const std::vector<std::string> &refSequences)
+{
+  uint64_t count = 0;
+
+  for (auto &f : refSequences)
+  {
+    // Open the file as binary, and set the position to end
+    std::ifstream in(f, std::ifstream::ate | std::ifstream::binary);
+
+    // the position of the current character
+    count += (uint64_t)(in.tellg());
+  }
+
+  return count;
+}
+
+/**
+ * @brief               trim white spaces from start of the string
+ * @param[in/out]   s
+ */
+inline void ltrim(std::string &s)
+{
+  s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
+}
+
+/**
+ * @brief               trim white spaces from end of the string
+ * @param[in/out]   s
+ */
+inline void rtrim(std::string &s)
+{
+  s.erase(std::find_if(s.rbegin(), s.rend(), [](int ch) { return !std::isspace(ch); }).base(),
+          s.end());
+}
+
+/**
+ * @brief               trim white spaces from start and end of
+ *                      the input string
+ * @param[in/out]   s
+ */
+inline void trim(std::string &s)
+{
+  ltrim(s);
+  rtrim(s);
+}
+} // namespace CommonFunc
+} // namespace skch
 
 #endif

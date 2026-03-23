@@ -46,6 +46,15 @@ repos:
         pass_filenames: false
         stages:
           - pre-push
+      - id: fastani-sketch-md5
+        name: Check sketch reproducibility sentinel
+        entry: scripts/check_sketch_regression_md5.sh
+        language: system
+        pass_filenames: false
+        args:
+          - build-precommit/fastANI
+        stages:
+          - pre-push
       - id: fastani-docs
         name: Build MkDocs site
         entry: scripts/precommit_build_docs.sh
