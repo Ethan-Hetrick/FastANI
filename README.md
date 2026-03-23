@@ -30,6 +30,8 @@ Prebuilt dependency-free binaries for Linux and macOS are also available from th
 After installation, the executable is available as `fastANI`.
 If you are running directly from the build tree without installing, use `build/fastANI`.
 
+By default, `Release` builds favor portability across machines. For local benchmarking on a known host, you can opt into host-specific tuning with `-DFASTANI_NATIVE_OPTIMIZATION=ON`.
+
 ## Quick start
 
 ```sh
@@ -101,6 +103,8 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 </details>
 
 > If genome lists are copied or created from a Windows application, run `dos2unix` on the list file first to ensure the expected line-ending format.
+
+> FastANI warns on exact duplicate query or reference paths in list-based runs. During `--write-ref-sketch`, it also warns on potentially identical reference inputs using a lightweight content-derived key.
 
 ### Output options
 
@@ -550,13 +554,20 @@ If you need results that are stable across reruns, operators, or validation cycl
 - Keep mapping parameters fixed. Changing `--window-size`, `--reference-size`, `--fragLen`, or `-k/--kmer` can change reported ANI values, hit counts, and sketch compatibility.
 - Use `--average-reciprocals` consistently. It changes the sparse output schema from directional rows to one averaged reciprocal row per pair when both directions are present, and it averages `ANI` plus the `FragID_*` fields while leaving count and alignment-fraction columns directional to the displayed row.
 - Save reference lists and sketches together. A sketch should be reused only with the same compatible mapping configuration that was used to create it.
+- Keep reference list ordering stable when possible. `--write-ref-sketch` now canonicalizes reference ordering for reproducibility using a lightweight content-derived sort key, so the same reference set is less sensitive to input-list order than before.
 - Make saved sketches read-only after creation to avoid accidental modification, for example: `chmod a-w reference_sketch.*`
 - Record the exact `fastANI --version`, command line, reference list, and output mode (`--matrix`, `--extended-metrics`, `--average-reciprocals`) alongside released results.
 - Prefer `--batch-size` over mapping-parameter changes when the goal is only to reduce RAM usage. `--batch-size` changes how sketch shards are loaded, not the mapping configuration itself.
 - Keep the primary sparse output. Derived `.matrix` files or downstream reshaped matrices are useful, but the sparse table is the most explicit record of what FastANI reported.
 - Quality-check assemblies before analysis. Poorly assembled inputs can weaken ANI estimates and complicate downstream interpretation.
 
+Potentially identical reference inputs can also be worth reviewing before sketch creation. The warning uses a lightweight heuristic based on usable genome length, contig count, and the smallest observed minimizer hash, so it is intended as a practical caution rather than a proof of identity.
+
 For validated laboratory workflows, it is a good idea to freeze the full FastANI configuration, reference set, and sketch artifacts for each analysis release and treat any change to those inputs as a revalidation event.
+
+### Deployment note
+
+FastANI is a command-line tool. If it is wrapped in a web service, workflow runner, or other multi-user system, treat all input as untrusted and enforce isolated work directories, file path restrictions, and runtime and resource limits in the wrapper layer.
 
 ## Support
 

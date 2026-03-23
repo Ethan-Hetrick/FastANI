@@ -1,0 +1,13 @@
+# Default review coverage for core project areas
+
+* @Ethan-Hetrick
+
+# Core code
+/src/ @Ethan-Hetrick
+/tests/ @Ethan-Hetrick
+
+# Project policy and automation
+/.github/ @Ethan-Hetrick
+/CMakeLists.txt @Ethan-Hetrick
+/INSTALL.txt @Ethan-Hetrick
+/README.md @Ethan-Hetrick

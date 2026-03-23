@@ -11,6 +11,9 @@
 #include <string>
 #include <fstream>
 #include <cassert>
+#include <map>
+#include <tuple>
+#include <limits>
 
 // Own includes
 #include "map/include/map_parameters.hpp"
@@ -19,6 +22,8 @@
 
 // External includes
 #include "common/clipp.h"
+#include "common/kseq.h"
+#include <zlib.h>
 
 namespace skch
 {
@@ -86,6 +91,111 @@ template <typename VEC> void validateInputFiles(VEC &querySequences, VEC &refSeq
       exit(1);
     }
   }
+}
+
+template <typename VEC> void warnOnDuplicateInputPaths(const VEC &paths, const std::string &label)
+{
+  std::map<std::string, int> counts;
+  for (const auto &path : paths)
+    counts[path]++;
+
+  for (const auto &entry : counts)
+  {
+    if (entry.second > 1)
+    {
+      std::cerr << "WARNING, duplicate " << label << " input path appears " << entry.second
+                << " times: " << entry.first << std::endl;
+    }
+  }
+}
+
+struct ReferenceSketchSortKey
+{
+  std::uint64_t usableGenomeLength = 0;
+  std::uint64_t contigCount = 0;
+  hash_t smallestMinimizerHash = std::numeric_limits<hash_t>::max();
+  std::string originalPath;
+};
+
+inline ReferenceSketchSortKey buildReferenceSketchSortKey(const std::string &fileName,
+                                                          const skch::Parameters &parameters)
+{
+  ReferenceSketchSortKey key;
+  key.originalPath = fileName;
+
+  gzFile fp = gzopen(fileName.c_str(), "r");
+  if (fp == Z_NULL)
+  {
+    std::cerr << "ERROR, skch::buildReferenceSketchSortKey, Could not open " << fileName
+              << std::endl;
+    exit(1);
+  }
+
+  gzbuffer(fp, 1 << 20);
+  kseq_t *seq = kseq_init(fp);
+  offset_t len = 0;
+
+  while ((len = kseq_read(seq)) >= 0)
+  {
+    key.contigCount++;
+    key.usableGenomeLength +=
+      (static_cast<std::uint64_t>(len) / static_cast<std::uint64_t>(parameters.minReadLength)) *
+      static_cast<std::uint64_t>(parameters.minReadLength);
+
+    if (len >= parameters.windowSize && len >= parameters.kmerSize)
+    {
+      key.smallestMinimizerHash =
+        std::min(key.smallestMinimizerHash,
+                 skch::CommonFunc::smallestMinimizerHash(
+                   seq, parameters.kmerSize, parameters.windowSize, parameters.alphabetSize));
+    }
+  }
+
+  kseq_destroy(seq);
+  gzclose(fp);
+
+  return key;
+}
+
+inline void canonicalizeReferenceOrderForSketchWrite(skch::Parameters &parameters)
+{
+  std::vector<std::pair<ReferenceSketchSortKey, std::string>> keyedReferences;
+  keyedReferences.reserve(parameters.refSequences.size());
+  std::map<std::tuple<std::uint64_t, std::uint64_t, hash_t>, std::vector<std::string>>
+    potentialDuplicates;
+
+  for (const auto &ref : parameters.refSequences)
+  {
+    auto key = buildReferenceSketchSortKey(ref, parameters);
+    potentialDuplicates[std::make_tuple(key.usableGenomeLength, key.contigCount,
+                                        key.smallestMinimizerHash)]
+      .push_back(ref);
+    keyedReferences.push_back({key, ref});
+  }
+
+  for (const auto &entry : potentialDuplicates)
+  {
+    if (entry.second.size() > 1)
+    {
+      std::cerr << "WARNING, sketch creation found potentially identical reference inputs based "
+                   "on (usable_genome_length, contig_count, smallest_minimizer_hash): "
+                << entry.second << std::endl;
+    }
+  }
+
+  std::stable_sort(keyedReferences.begin(), keyedReferences.end(),
+                   [](const auto &lhs, const auto &rhs)
+                   {
+                     const auto &a = lhs.first;
+                     const auto &b = rhs.first;
+                     return std::tie(a.usableGenomeLength, a.contigCount, a.smallestMinimizerHash,
+                                     a.originalPath) < std::tie(b.usableGenomeLength, b.contigCount,
+                                                                b.smallestMinimizerHash,
+                                                                b.originalPath);
+                   });
+
+  for (size_t i = 0; i < keyedReferences.size(); i++)
+    parameters.refSequences[i] = keyedReferences[i].second;
 }
 
 /**
@@ -406,6 +516,12 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
   {
     validateInputFiles(parameters.querySequences, parameters.refSequences);
   }
+
+  warnOnDuplicateInputPaths(parameters.querySequences, "query");
+  warnOnDuplicateInputPaths(parameters.refSequences, "reference");
+
+  if (parameters.writeRefSketchMode)
+    canonicalizeReferenceOrderForSketchWrite(parameters);
 
   printCmdOptions(parameters);
 }

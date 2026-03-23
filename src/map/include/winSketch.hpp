@@ -1,10 +1,10 @@
 /**
  * @file    winSketch.hpp
- * @brief   routines to index the reference 
+ * @brief   routines to index the reference
  * @author  Chirag Jain <cjain7@gatech.edu>
  */
 
-#ifndef WIN_SKETCH_HPP 
+#ifndef WIN_SKETCH_HPP
 #define WIN_SKETCH_HPP
 
 #include <vector>
@@ -12,416 +12,422 @@
 #include <unordered_map>
 #include <map>
 #include <cassert>
-#include <zlib.h>  
+#include <zlib.h>
 #include <omp.h>
 
-//Own includes
+// Own includes
 #include "map/include/commonFunc.hpp"
 #include "map/include/base_types.hpp"
 #include "map/include/map_parameters.hpp"
 
-//External includes
-#include "common/kseq.h"
+// External includes
 #include "common/murmur3.h"
 #include "common/prettyprint.hpp"
 
-KSEQ_INIT(gzFile, gzread)
-
 namespace skch
 {
-  /**
-   * @class     skch::Sketch
-   * @brief     sketches and indexes the reference (subject sequence)
-   * @details  
-   *            1.  Minimizers are computed in streaming fashion
-   *                Computing minimizers is using double ended queue which gives
-   *                O(reference size) complexity
-   *                Algorithm described here:
-   *                https://people.cs.uct.ac.za/~ksmith/articles/sliding_window_minimum.html
-   *
-   *            2.  Index hashes into appropriate format to enable fast search at L1 mapping stage
+/**
+ * @class     skch::Sketch
+ * @brief     sketches and indexes the reference (subject sequence)
+ * @details
+ *            1.  Minimizers are computed in streaming fashion
+ *                Computing minimizers is using double ended queue which gives
+ *                O(reference size) complexity
+ *                Algorithm described here:
+ *                https://people.cs.uct.ac.za/~ksmith/articles/sliding_window_minimum.html
+ *
+ *            2.  Index hashes into appropriate format to enable fast search at L1 mapping stage
+ */
+class Sketch
+{
+  // private members
+
+  // algorithm parameters
+  const skch::Parameters &param;
+
+  // Ignore top % most frequent minimizers while lookups
+  const float percentageThreshold = 0.0;
+
+  // Minimizers that occur this or more times will be ignored (computed based on
+  // percentageThreshold)
+  int freqThreshold = std::numeric_limits<int>::max();
+
+  // Make the default constructor private, non-accessible
+  Sketch();
+
+public:
+  typedef std::vector<MinimizerInfo> MI_Type;
+  using MIIter_t = MI_Type::const_iterator;
+
+  // Keep sequence length, name that appear in the sequence (for printing the mappings later)
+  std::vector<ContigInfo> metadata;
+
+  /*
+   * Keep the information of what sequences come from what file#
+   * Example [a, b, c] implies
+   *  file 0 contains 0 .. a-1 sequences
+   *  file 1 contains a .. b-1
+   *  file 2 contains b .. c-1
    */
-    class Sketch
+  std::vector<seqno_t> sequencesByFileInfo;
+
+  // Original reference file paths, one per genome/file in sequencesByFileInfo.
+  std::vector<std::string> referenceFiles;
+
+  // Index for fast seed lookup
+  /*
+   * [minimizer #1] -> [pos1, pos2, pos3 ...]
+   * [minimizer #2] -> [pos1, pos2...]
+   * ...
+   */
+  using MI_Map_t = std::unordered_map<MinimizerMapKeyType, MinimizerMapValueType>;
+  MI_Map_t minimizerPosLookupIndex;
+
+private:
+  /**
+   * Keep list of minimizers, sequence# , their position within seq , here while parsing sequence
+   * Note : position is local within each contig
+   * Hashes saved here are non-unique, ordered as they appear in the reference
+   */
+  MI_Type minimizerIndex;
+
+  // Frequency histogram of minimizers
+  //[... ,x -> y, ...] implies y number of minimizers occur x times
+  std::map<int, int> minimizerFreqHistogram;
+
+  // Sanity check variables
+  float hashRatio;
+  float uniqHashRatio;
+  float ratioDifference;
+
+public:
+  /**
+   * @brief   constructor
+   *          also builds, indexes the minimizer table
+   */
+  Sketch(const skch::Parameters &p) : param(p)
+  {
+    auto tBuildStart = skch::Time::now();
+    this->build();
+    auto tAfterBuild = skch::Time::now();
+    this->index();
+    auto tAfterIndex = skch::Time::now();
+    this->computeFreqHist();
+    auto tAfterFreqHist = skch::Time::now();
+
+    if (omp_get_thread_num() == 0)
     {
-      //private members
-    
-      //algorithm parameters
-      const skch::Parameters &param;
+      std::chrono::duration<double> buildTime = tAfterBuild - tBuildStart;
+      std::chrono::duration<double> indexTime = tAfterIndex - tAfterBuild;
+      std::chrono::duration<double> freqHistTime = tAfterFreqHist - tAfterIndex;
 
-      //Ignore top % most frequent minimizers while lookups
-      const float percentageThreshold = 0.0;
+      std::cerr << "INFO [thread 0], skch::Sketch, Time spent collecting minimizers : "
+                << buildTime.count() << " sec" << std::endl;
+      std::cerr << "INFO [thread 0], skch::Sketch, Time spent building lookup index : "
+                << indexTime.count() << " sec" << std::endl;
+      std::cerr << "INFO [thread 0], skch::Sketch, Time spent computing frequency histogram : "
+                << freqHistTime.count() << " sec" << std::endl;
+    }
+  }
 
-      //Minimizers that occur this or more times will be ignored (computed based on percentageThreshold)
-      int freqThreshold = std::numeric_limits<int>::max();
+  Sketch(const skch::Parameters &p, bool deferBuild) : param(p)
+  {
+    if (!deferBuild)
+    {
+      auto tBuildStart = skch::Time::now();
+      this->build();
+      auto tAfterBuild = skch::Time::now();
+      this->index();
+      auto tAfterIndex = skch::Time::now();
+      this->computeFreqHist();
+      auto tAfterFreqHist = skch::Time::now();
 
-      //Make the default constructor private, non-accessible
-      Sketch();
-
-      public:
-
-      typedef std::vector< MinimizerInfo > MI_Type;
-      using MIIter_t = MI_Type::const_iterator;
-
-      //Keep sequence length, name that appear in the sequence (for printing the mappings later)
-      std::vector< ContigInfo > metadata;
-
-      /*
-       * Keep the information of what sequences come from what file#
-       * Example [a, b, c] implies 
-       *  file 0 contains 0 .. a-1 sequences
-       *  file 1 contains a .. b-1 
-       *  file 2 contains b .. c-1
-       */
-      std::vector< seqno_t > sequencesByFileInfo;
-
-      // Original reference file paths, one per genome/file in sequencesByFileInfo.
-      std::vector<std::string> referenceFiles;
-
-      //Index for fast seed lookup
-      /*
-       * [minimizer #1] -> [pos1, pos2, pos3 ...]
-       * [minimizer #2] -> [pos1, pos2...]
-       * ...
-       */
-      using MI_Map_t = std::unordered_map< MinimizerMapKeyType, MinimizerMapValueType >;
-      MI_Map_t minimizerPosLookupIndex;
-
-      private:
-
-      /**
-       * Keep list of minimizers, sequence# , their position within seq , here while parsing sequence 
-       * Note : position is local within each contig
-       * Hashes saved here are non-unique, ordered as they appear in the reference
-       */
-      MI_Type minimizerIndex;
-
-      //Frequency histogram of minimizers
-      //[... ,x -> y, ...] implies y number of minimizers occur x times
-      std::map<int, int> minimizerFreqHistogram;
-
-      // Sanity check variables
-      float hashRatio;
-      float uniqHashRatio;
-      float ratioDifference;
-      public:
-
-      /**
-       * @brief   constructor
-       *          also builds, indexes the minimizer table
-       */
-      Sketch(const skch::Parameters &p)
-        :
-          param(p)
+      if (omp_get_thread_num() == 0)
       {
-        auto tBuildStart = skch::Time::now();
-        this->build();
-        auto tAfterBuild = skch::Time::now();
-        this->index();
-        auto tAfterIndex = skch::Time::now();
-        this->computeFreqHist();
-        auto tAfterFreqHist = skch::Time::now();
+        std::chrono::duration<double> buildTime = tAfterBuild - tBuildStart;
+        std::chrono::duration<double> indexTime = tAfterIndex - tAfterBuild;
+        std::chrono::duration<double> freqHistTime = tAfterFreqHist - tAfterIndex;
 
-        if (omp_get_thread_num() == 0)
-        {
-          std::chrono::duration<double> buildTime = tAfterBuild - tBuildStart;
-          std::chrono::duration<double> indexTime = tAfterIndex - tAfterBuild;
-          std::chrono::duration<double> freqHistTime = tAfterFreqHist - tAfterIndex;
-
-          std::cerr << "INFO [thread 0], skch::Sketch, Time spent collecting minimizers : "
-                    << buildTime.count() << " sec" << std::endl;
-          std::cerr << "INFO [thread 0], skch::Sketch, Time spent building lookup index : "
-                    << indexTime.count() << " sec" << std::endl;
-          std::cerr << "INFO [thread 0], skch::Sketch, Time spent computing frequency histogram : "
-                    << freqHistTime.count() << " sec" << std::endl;
-        }
+        std::cerr << "INFO [thread 0], skch::Sketch, Time spent collecting minimizers : "
+                  << buildTime.count() << " sec" << std::endl;
+        std::cerr << "INFO [thread 0], skch::Sketch, Time spent building lookup index : "
+                  << indexTime.count() << " sec" << std::endl;
+        std::cerr << "INFO [thread 0], skch::Sketch, Time spent computing frequency histogram : "
+                  << freqHistTime.count() << " sec" << std::endl;
       }
+    }
+  }
 
-      Sketch(const skch::Parameters &p, bool deferBuild)
-        :
-          param(p)
-      {
-        if(!deferBuild)
-        {
-          auto tBuildStart = skch::Time::now();
-          this->build();
-          auto tAfterBuild = skch::Time::now();
-          this->index();
-          auto tAfterIndex = skch::Time::now();
-          this->computeFreqHist();
-          auto tAfterFreqHist = skch::Time::now();
+private:
+  /**
+   * @brief     build the sketch table
+   * @details   compute and save minimizers from the reference sequence(s)
+   *            assuming a fixed window size
+   */
 
-          if (omp_get_thread_num() == 0)
-          {
-            std::chrono::duration<double> buildTime = tAfterBuild - tBuildStart;
-            std::chrono::duration<double> indexTime = tAfterIndex - tAfterBuild;
-            std::chrono::duration<double> freqHistTime = tAfterFreqHist - tAfterIndex;
+  void build()
+  {
+    this->referenceFiles = param.refSequences;
 
-            std::cerr << "INFO [thread 0], skch::Sketch, Time spent collecting minimizers : "
-                      << buildTime.count() << " sec" << std::endl;
-            std::cerr << "INFO [thread 0], skch::Sketch, Time spent building lookup index : "
-                      << indexTime.count() << " sec" << std::endl;
-            std::cerr << "INFO [thread 0], skch::Sketch, Time spent computing frequency histogram : "
-                      << freqHistTime.count() << " sec" << std::endl;
-          }
-        }
-      }
+    // sequence counter while parsing file
+    seqno_t seqCounter = 0;
 
-      private:
+    // Reserve once for the full reference set to reduce geometric growth of
+    // the global minimizer vector without forcing the per-contig reallocations
+    // that previously regressed build time.
+    const int safeWindow = std::max(1, param.windowSize);
+    const size_t estMinimizers =
+      static_cast<size_t>(std::max<uint64_t>(500000, param.referenceSize / safeWindow));
+    this->minimizerIndex.reserve(estMinimizers);
 
-      /**
-       * @brief     build the sketch table
-       * @details   compute and save minimizers from the reference sequence(s)
-       *            assuming a fixed window size
-       */
+    if (omp_get_thread_num() == 0)
+      std::cerr << "INFO [thread 0], skch::Sketch::build, window size for minimizer sampling  = "
+                << param.windowSize << std::endl;
 
-      void build()
-      {
-        this->referenceFiles = param.refSequences;
-
-        //sequence counter while parsing file
-        seqno_t seqCounter = 0;
-
-        // Reserve once for the full reference set to reduce geometric growth of
-        // the global minimizer vector without forcing the per-contig reallocations
-        // that previously regressed build time.
-        const int safeWindow = std::max(1, param.windowSize);
-        const size_t estMinimizers =
-          static_cast<size_t>(std::max<uint64_t>(500000, param.referenceSize / safeWindow));
-        this->minimizerIndex.reserve(estMinimizers);
-
-        if ( omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::Sketch::build, window size for minimizer sampling  = "
-                    << param.windowSize << std::endl;
-
-        for(const auto &fileName : param.refSequences)
-        {
+    for (const auto &fileName : param.refSequences)
+    {
 
 #ifdef DEBUG
-          std::cerr << "INFO, skch::Sketch::build, building minimizer index for " << fileName << std::endl;
+      std::cerr << "INFO, skch::Sketch::build, building minimizer index for " << fileName
+                << std::endl;
 #endif
 
-          //Open the file using kseq
-          gzFile fp = gzopen(fileName.c_str(), "r");
-          gzbuffer(fp, 1 << 20);
-          kseq_t *seq = kseq_init(fp);
+      // Open the file using kseq
+      gzFile fp = gzopen(fileName.c_str(), "r");
+      gzbuffer(fp, 1 << 20);
+      kseq_t *seq = kseq_init(fp);
 
-          //size of sequence
-          offset_t len;
+      // size of sequence
+      offset_t len;
 
-          while ((len = kseq_read(seq)) >= 0)
-          {
-            //Save the sequence name
-            metadata.push_back( ContigInfo{seq->name.s, (offset_t)seq->seq.l} );
+      while ((len = kseq_read(seq)) >= 0)
+      {
+        // Save the sequence name
+        metadata.push_back(ContigInfo{seq->name.s, (offset_t)seq->seq.l});
 
-            //Is the sequence too short?
-            if(len < param.windowSize || len < param.kmerSize)
-            {
+        // Is the sequence too short?
+        if (len < param.windowSize || len < param.kmerSize)
+        {
 #ifdef DEBUG
-              std::cerr << "WARNING, skch::Sketch::build, found an unusually short sequence relative to kmer and window size" << std::endl;
+          std::cerr << "WARNING, skch::Sketch::build, found an unusually short sequence relative "
+                       "to kmer and window size"
+                    << std::endl;
 #endif
-            }
-            else
-            {
-              skch::CommonFunc::addMinimizers(this->minimizerIndex, seq, param.kmerSize, param.windowSize, param.alphabetSize, seqCounter);
-            }
-
-            seqCounter++;
-          }
-
-          sequencesByFileInfo.push_back(seqCounter);
-
-          kseq_destroy(seq);
-          gzclose(fp); //close the file handler
-        }
-
-        if ( omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::Sketch::build, minimizers picked from reference = "
-                    << minimizerIndex.size() << std::endl;
-
-      }
-
-      /**
-       * @brief   build the index for fast lookups using minimizer table
-       */
-      void index()
-      {
-        //Parse all the minimizers and push into the map
-        for(auto &e : minimizerIndex)
-        {
-          // [hash value -> info about minimizer]
-          minimizerPosLookupIndex[e.hash].push_back(
-              MinimizerMetaData{e.seqId, e.wpos});
-        }
-
-        if ( omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::Sketch::index, unique minimizers = "
-                    << minimizerPosLookupIndex.size() << std::endl;
-      }
-
-      /**
-       * @brief   report the frequency histogram of minimizers using position lookup index
-       *          and compute which high frequency minimizers to ignore
-       */
-      void computeFreqHist()
-      {
-        if(this->percentageThreshold <= 0.0f)
-        {
-          this->minimizerFreqHistogram.clear();
-          this->freqThreshold = std::numeric_limits<int>::max();
-
-          if ( omp_get_thread_num() == 0)
-            std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, consider all minimizers during lookup." << std::endl;
-
-          return;
-        }
-
-        //1. Compute histogram
-
-        for(auto &e : this->minimizerPosLookupIndex)
-          this->minimizerFreqHistogram[e.second.size()] += 1;
-
-        if ( omp_get_thread_num() == 0)
-          std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, Frequency histogram of minimizers = " <<  *this->minimizerFreqHistogram.begin() <<  " ... " << *this->minimizerFreqHistogram.rbegin() << std::endl;
-
-        //2. Compute frequency threshold to ignore most frequent minimizers
-
-        int64_t totalUniqueMinimizers = this->minimizerPosLookupIndex.size();
-        int64_t minimizerToIgnore = totalUniqueMinimizers * percentageThreshold / 100;
-
-        int64_t sum = 0;
-
-        //Iterate from highest frequent minimizers
-        for(auto it = this->minimizerFreqHistogram.rbegin(); it != this->minimizerFreqHistogram.rend(); it++)
-        {
-          sum += it->second; //add frequency
-          if(sum < minimizerToIgnore)
-          {
-            this->freqThreshold = it->first;
-            //continue
-          }
-          else if(sum == minimizerToIgnore)
-          {
-            this->freqThreshold = it->first;
-            break;
-          }
-          else
-          {
-            break;
-          }
-        }
-
-        if(this->freqThreshold != std::numeric_limits<int>::max())
-        {
-          if ( omp_get_thread_num() == 0)
-            std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, With threshold " << this->percentageThreshold << "%, ignore minimizers occurring >= " << this->freqThreshold << " times during lookup." << std::endl;
         }
         else
         {
-          if ( omp_get_thread_num() == 0)
-            std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, consider all minimizers during lookup." << std::endl;
+          skch::CommonFunc::addMinimizers(this->minimizerIndex, seq, param.kmerSize,
+                                          param.windowSize, param.alphabetSize, seqCounter);
         }
 
+        seqCounter++;
       }
 
-      public:
+      sequencesByFileInfo.push_back(seqCounter);
 
-      /**
-       * @brief               search hash associated with given position inside the index
-       * @details             if MIIter_t iter is returned, than *iter's wpos >= winpos
-       * @param[in]   seqId
-       * @param[in]   winpos
-       * @return              iterator to the minimizer in the index
-       */
-      MIIter_t searchIndex(seqno_t seqId, offset_t winpos) const
+      kseq_destroy(seq);
+      gzclose(fp); // close the file handler
+    }
+
+    if (omp_get_thread_num() == 0)
+      std::cerr << "INFO [thread 0], skch::Sketch::build, minimizers picked from reference = "
+                << minimizerIndex.size() << std::endl;
+  }
+
+  /**
+   * @brief   build the index for fast lookups using minimizer table
+   */
+  void index()
+  {
+    // Parse all the minimizers and push into the map
+    for (auto &e : minimizerIndex)
+    {
+      // [hash value -> info about minimizer]
+      minimizerPosLookupIndex[e.hash].push_back(MinimizerMetaData{e.seqId, e.wpos});
+    }
+
+    if (omp_get_thread_num() == 0)
+      std::cerr << "INFO [thread 0], skch::Sketch::index, unique minimizers = "
+                << minimizerPosLookupIndex.size() << std::endl;
+  }
+
+  /**
+   * @brief   report the frequency histogram of minimizers using position lookup index
+   *          and compute which high frequency minimizers to ignore
+   */
+  void computeFreqHist()
+  {
+    if (this->percentageThreshold <= 0.0f)
+    {
+      this->minimizerFreqHistogram.clear();
+      this->freqThreshold = std::numeric_limits<int>::max();
+
+      if (omp_get_thread_num() == 0)
+        std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, consider all minimizers "
+                     "during lookup."
+                  << std::endl;
+
+      return;
+    }
+
+    // 1. Compute histogram
+
+    for (auto &e : this->minimizerPosLookupIndex)
+      this->minimizerFreqHistogram[e.second.size()] += 1;
+
+    if (omp_get_thread_num() == 0)
+      std::cerr
+        << "INFO [thread 0], skch::Sketch::computeFreqHist, Frequency histogram of minimizers = "
+        << *this->minimizerFreqHistogram.begin() << " ... "
+        << *this->minimizerFreqHistogram.rbegin() << std::endl;
+
+    // 2. Compute frequency threshold to ignore most frequent minimizers
+
+    int64_t totalUniqueMinimizers = this->minimizerPosLookupIndex.size();
+    int64_t minimizerToIgnore = totalUniqueMinimizers * percentageThreshold / 100;
+
+    int64_t sum = 0;
+
+    // Iterate from highest frequent minimizers
+    for (auto it = this->minimizerFreqHistogram.rbegin(); it != this->minimizerFreqHistogram.rend();
+         it++)
+    {
+      sum += it->second; // add frequency
+      if (sum < minimizerToIgnore)
       {
-        std::pair<seqno_t, offset_t> searchPosInfo(seqId, winpos);
-
-        /*
-         * std::lower_bound --  Returns an iterator pointing to the first element in the range
-         *                      that is not less than (i.e. greater or equal to) value.
-         */
-        MIIter_t iter = std::lower_bound(this->minimizerIndex.begin(), this->minimizerIndex.end(), searchPosInfo, cmp);
-
-        return iter;
+        this->freqThreshold = it->first;
+        // continue
       }
-
-      /**
-       * @brief     Return end iterator on minimizerIndex
-       */
-      MIIter_t getMinimizerIndexEnd() const
+      else if (sum == minimizerToIgnore)
       {
-        return this->minimizerIndex.end();
+        this->freqThreshold = it->first;
+        break;
       }
-
-      friend void saveReferenceSketch(const Sketch& sketch,
-                                const Parameters& parameters,
-                                const std::string& outFile);
-
-      friend Sketch loadReferenceSketch(const Parameters& parameters,
-                                        const std::string& inFile);
-
-      int getFreqThreshold() const
+      else
       {
-        return this->freqThreshold;
+        break;
       }
+    }
 
-      float getRatioDifference() const
-      {
-          return this->ratioDifference;
-      }
+    if (this->freqThreshold != std::numeric_limits<int>::max())
+    {
+      if (omp_get_thread_num() == 0)
+        std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, With threshold "
+                  << this->percentageThreshold
+                  << "%, ignore minimizers occurring >= " << this->freqThreshold
+                  << " times during lookup." << std::endl;
+    }
+    else
+    {
+      if (omp_get_thread_num() == 0)
+        std::cerr << "INFO [thread 0], skch::Sketch::computeFreqHist, consider all minimizers "
+                     "during lookup."
+                  << std::endl;
+    }
+  }
 
-      float getUniqRation() const {
-          return this->uniqHashRatio;
-      }
+public:
+  /**
+   * @brief               search hash associated with given position inside the index
+   * @details             if MIIter_t iter is returned, than *iter's wpos >= winpos
+   * @param[in]   seqId
+   * @param[in]   winpos
+   * @return              iterator to the minimizer in the index
+   */
+  MIIter_t searchIndex(seqno_t seqId, offset_t winpos) const
+  {
+    std::pair<seqno_t, offset_t> searchPosInfo(seqId, winpos);
 
-      float getHashRatio() const {
-          return this->hashRatio;
-      }
+    /*
+     * std::lower_bound --  Returns an iterator pointing to the first element in the range
+     *                      that is not less than (i.e. greater or equal to) value.
+     */
+    MIIter_t iter = std::lower_bound(this->minimizerIndex.begin(), this->minimizerIndex.end(),
+                                     searchPosInfo, cmp);
 
-      bool sanityCheck(float maxRatioDiff) {
-          if(!param.sanityCheck) // Return true if no sanity check is requested
-            return true;
-          std::size_t totalSize = 0, totalLength = 0;
-          for(auto& rx: minimizerPosLookupIndex){
-              totalSize += rx.second.size();
-          }
-          for(auto& cx : metadata){
-              totalLength += cx.len;
-          }
-          this->hashRatio = float(totalLength) / float(totalSize);
-          this->uniqHashRatio = float(totalLength) / float(minimizerPosLookupIndex.size());
-          //std::cout << "Ratio of Total Ref. Length/Total Occ. Hashes " << hashRatio << std::endl;
-          //std::cout << "Ratio of Total Ref. Length/Total No. Hashes " << uniqHashRatio << std::endl;
-          this->ratioDifference =  std::abs(hashRatio - uniqHashRatio);
-          if(this->ratioDifference > maxRatioDiff){
-              //std::cerr << "ERROR : Ratio difference is large, Possible Repeats!" << std::endl;
-              return false;
-          }
-          return true;
-      }
+    return iter;
+  }
 
-      private:
+  /**
+   * @brief     Return end iterator on minimizerIndex
+   */
+  MIIter_t getMinimizerIndexEnd() const
+  {
+    return this->minimizerIndex.end();
+  }
 
-      /**
-       * @brief     functor for comparing minimizers by their position in minimizerIndex
-       * @details   used for locating minimizers with the required positional information
-       */
-      struct compareMinimizersByPos
-      {
-        typedef std::pair<seqno_t, offset_t> P;
+  friend void saveReferenceSketch(const Sketch &sketch, const Parameters &parameters,
+                                  const std::string &outFile);
 
-        bool operator() (const MinimizerInfo &m, const P &val)
-        {
-          return ( P(m.seqId, m.wpos) < val);
-        }
+  friend Sketch loadReferenceSketch(const Parameters &parameters, const std::string &inFile);
 
-        bool operator() (const P &val, const MinimizerInfo &m)
-        {
-          return (val < P(m.seqId, m.wpos) );
-        }
-      } cmp;
+  int getFreqThreshold() const
+  {
+    return this->freqThreshold;
+  }
 
-    }; //End of class Sketch
-} //End of namespace skch
+  float getRatioDifference() const
+  {
+    return this->ratioDifference;
+  }
+
+  float getUniqRation() const
+  {
+    return this->uniqHashRatio;
+  }
+
+  float getHashRatio() const
+  {
+    return this->hashRatio;
+  }
+
+  bool sanityCheck(float maxRatioDiff)
+  {
+    if (!param.sanityCheck) // Return true if no sanity check is requested
+      return true;
+    std::size_t totalSize = 0, totalLength = 0;
+    for (auto &rx : minimizerPosLookupIndex)
+    {
+      totalSize += rx.second.size();
+    }
+    for (auto &cx : metadata)
+    {
+      totalLength += cx.len;
+    }
+    this->hashRatio = float(totalLength) / float(totalSize);
+    this->uniqHashRatio = float(totalLength) / float(minimizerPosLookupIndex.size());
+    // std::cout << "Ratio of Total Ref. Length/Total Occ. Hashes " << hashRatio << std::endl;
+    // std::cout << "Ratio of Total Ref. Length/Total No. Hashes " << uniqHashRatio << std::endl;
+    this->ratioDifference = std::abs(hashRatio - uniqHashRatio);
+    if (this->ratioDifference > maxRatioDiff)
+    {
+      // std::cerr << "ERROR : Ratio difference is large, Possible Repeats!" << std::endl;
+      return false;
+    }
+    return true;
+  }
+
+private:
+  /**
+   * @brief     functor for comparing minimizers by their position in minimizerIndex
+   * @details   used for locating minimizers with the required positional information
+   */
+  struct compareMinimizersByPos
+  {
+    typedef std::pair<seqno_t, offset_t> P;
+
+    bool operator()(const MinimizerInfo &m, const P &val)
+    {
+      return (P(m.seqId, m.wpos) < val);
+    }
+
+    bool operator()(const P &val, const MinimizerInfo &m)
+    {
+      return (val < P(m.seqId, m.wpos));
+    }
+  } cmp;
+
+}; // End of class Sketch
+} // End of namespace skch
 
 #endif

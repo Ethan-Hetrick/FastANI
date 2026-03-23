@@ -11,6 +11,7 @@
 #include <deque>
 #include <cmath>
 #include <fstream>
+#include <zlib.h>
 
 // Own includes
 #include "map/include/map_parameters.hpp"
@@ -19,6 +20,8 @@
 #include "common/murmur3.h"
 #include "common/kseq.h"
 #include "common/prettyprint.hpp"
+
+KSEQ_INIT(gzFile, gzread)
 
 namespace skch
 {
@@ -211,6 +214,79 @@ inline void addMinimizers(std::vector<T> &minimizerIndex, KSEQ kseq, int kmerSiz
                           int alphabetSize)
 {
   addMinimizers(minimizerIndex, kseq, kmerSize, windowSize, alphabetSize, 0);
+}
+
+template <typename KSEQ>
+inline hash_t smallestMinimizerHash(KSEQ kseq, int kmerSize, int windowSize, int alphabetSize)
+{
+  struct WindowMinimizer
+  {
+    hash_t hash;
+    offset_t kmerPos;
+  };
+
+  bool needsUpper = false;
+  const int scan = static_cast<int>(kseq->seq.l);
+  for (int j = 0; j < scan; j++)
+  {
+    char c = kseq->seq.s[j];
+    if (c >= 'a' && c <= 'z')
+    {
+      needsUpper = true;
+      break;
+    }
+  }
+  if (needsUpper)
+    makeUpperCase(kseq);
+
+  const offset_t len = kseq->seq.l;
+  if (len < windowSize || len < kmerSize)
+    return std::numeric_limits<hash_t>::max();
+
+  static thread_local std::vector<char> seqRevBuf;
+  char *seqRev = nullptr;
+
+  if (alphabetSize == 4)
+  {
+    if (seqRevBuf.size() < static_cast<size_t>(len))
+      seqRevBuf.resize(static_cast<size_t>(len));
+    seqRev = seqRevBuf.data();
+    CommonFunc::reverseComplement(kseq->seq.s, seqRev, len);
+  }
+
+  std::deque<WindowMinimizer> Q;
+  hash_t bestHash = std::numeric_limits<hash_t>::max();
+
+  for (offset_t i = 0; i < len - kmerSize + 1; i++)
+  {
+    const offset_t currentWindowId = i - windowSize + 1;
+
+    hash_t hashFwd = CommonFunc::getHash(kseq->seq.s + i, kmerSize);
+    hash_t hashBwd;
+
+    if (alphabetSize == 4)
+      hashBwd = CommonFunc::getHash(seqRev + len - i - kmerSize, kmerSize);
+    else
+      hashBwd = std::numeric_limits<hash_t>::max();
+
+    if (hashBwd == hashFwd)
+      continue;
+
+    const hash_t currentKmer = std::min(hashFwd, hashBwd);
+
+    while (!Q.empty() && Q.front().kmerPos <= i - windowSize)
+      Q.pop_front();
+
+    while (!Q.empty() && Q.back().hash >= currentKmer)
+      Q.pop_back();
+
+    Q.push_back(WindowMinimizer{currentKmer, i});
+
+    if (currentWindowId >= 0 && !Q.empty())
+      bestHash = std::min(bestHash, Q.front().hash);
+  }
+
+  return bestHash;
 }
 
 /**
