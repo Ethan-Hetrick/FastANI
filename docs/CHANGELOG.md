@@ -33,6 +33,15 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: batched sketch runs could silently reuse the wrong contig-to-genome mapping when two shards had the same contig count, and mixed-case sequence beyond the first 4096 bases could bypass uppercasing and alter hashing.
   Validation: added targeted regression tests for batched sketch parity and mixed-case query equivalence in `tests/fastani_tests.cpp`.
 
+- Evaluated and rejected a flat-array replacement for `minimizerPosLookupIndex` on the current benchmark workloads.
+  Why: the prototype preserved output parity on the checked sketch-backed paths, but it regressed performance instead of improving it.
+  Benchmark summary:
+  - half-list sketch query (`standard`): `13.23s` vs prior `8.87s`
+  - half-list sketch query (`--batch-size 1`): `57.61s` vs prior `47.62s`
+  - full `genome-list.txt` sketch build: `29.87s` vs prior `22.52s`
+  - full `genome-list.txt` sketch query was still unfinished after more than `18` minutes, far worse than the prior `483.99s` full sketch-query wall time
+    Decision: do not revive this specific “flat hash lookup array” approach without materially different design evidence and new benchmarks showing a clear win.
+
 - Restored the missing query-bucket reduction stage in `computeCGI`, fixing incorrect two-way ANI behavior after earlier optimization work.
   Why: performance work is only useful if the core reciprocal ANI result remains correct.
   Related commit: `e2df7e7`
