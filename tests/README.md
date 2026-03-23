@@ -7,7 +7,7 @@ It is intended to answer:
 
 - what was tested
 - how it was tested
-- what commit the test batch was run against
+- what latest commit the documented checks were last extended or rechecked on
 - what behavior was observed
 
 Unless otherwise noted, commands are run from the repository root.
@@ -16,14 +16,15 @@ Unless otherwise noted, commands are run from the repository root.
 
 - Validation batch date: `2026-03-23`
 - Branch tested: `fix/stale-cache-and-mixedcase-correctness`
-- Latest commit tested for the validation batch below: `848cbc3`
+- Latest commit tested for this document: `c7da4f7`
 - Binary used for manual checks: `build/fastANI`
 
 ## How to update this document
 
 When adding a new validation entry:
 
-1. Record the branch and commit tested.
+1. Update the top-level latest commit tested if this entry reflects a new check
+   or rerun.
 2. Record the exact command or minimal reproducible procedure.
 3. Record the observed result, not just the intended result.
 4. Note whether the behavior is expected, accepted current behavior, or a bug.
@@ -32,23 +33,23 @@ When adding a new validation entry:
 
 ## Summary of currently documented validations
 
-| Validation                                    | Commit tested | Result           | Notes                                                            |
-| --------------------------------------------- | ------------- | ---------------- | ---------------------------------------------------------------- |
-| Mixed-case sequence normalization             | `848cbc3`     | Pass             | Lowercase sequence beyond base 4096 matched uppercase behavior   |
-| Batched sketch shard parity                   | `848cbc3`     | Pass             | `--batch-size 1` matched non-batched output                      |
-| FASTA contig-header robustness                | `848cbc3`     | Pass             | Numeric, duplicated, and junky headers did not change ANI output |
-| Gzip FASTA parity                             | `848cbc3`     | Pass             | Numeric ANI metrics matched uncompressed input                   |
-| CRLF genome-list parsing                      | `848cbc3`     | Pass             | Windows line endings were tolerated in the tested case           |
-| Default `stdout` output                       | `848cbc3`     | Pass             | No `-o` matched explicit `-o` payload                            |
-| `--header` with `stdout`                      | `848cbc3`     | Pass             | `stdout` output matched file output exactly                      |
-| `--average-reciprocals` with extended metrics | `848cbc3`     | Pass             | Row count and header shape behaved as expected                   |
-| `--matrix` without `-o`                       | `848cbc3`     | Pass             | Tool failed cleanly with an explicit error                       |
-| Blank / whitespace-only lines in list file    | `848cbc3`     | Pass             | Blank lines were ignored in the tested case                      |
-| Duplicate genome entries in list file         | `848cbc3`     | Pass with caveat | Duplicate entries are not deduplicated                           |
-| `.visual` output with duplicated contig names | `848cbc3`     | Pass with caveat | Main metrics matched; duplicated headers reduce interpretability |
-| Extended-metrics sketch parity                | `848cbc3`     | Pass             | Sketch and no-sketch extended metrics matched                    |
-| Mid-range ANI regression fixture              | `b5b94f3`     | Pass             | Real archived pair reproduced at `89.8641` ANI                   |
-| Sketch MD5 reproducibility sentinel           | `b5b94f3`     | Pass             | Two rebuilds produced identical sketch bytes                     |
+| Validation                                    | Result           | Notes                                                            |
+| --------------------------------------------- | ---------------- | ---------------------------------------------------------------- |
+| Mixed-case sequence normalization             | Pass             | Lowercase sequence beyond base 4096 matched uppercase behavior   |
+| Batched sketch shard parity                   | Pass             | `--batch-size 1` matched non-batched output                      |
+| FASTA contig-header robustness                | Pass             | Numeric, duplicated, and junky headers did not change ANI output |
+| Gzip FASTA parity                             | Pass             | Numeric ANI metrics matched uncompressed input                   |
+| CRLF genome-list parsing                      | Pass             | Windows line endings were tolerated in the tested case           |
+| Default `stdout` output                       | Pass             | No `-o` matched explicit `-o` payload                            |
+| `--header` with `stdout`                      | Pass             | `stdout` output matched file output exactly                      |
+| `--average-reciprocals` with extended metrics | Pass             | Row count and header shape behaved as expected                   |
+| `--matrix` without `-o`                       | Pass             | Tool failed cleanly with an explicit error                       |
+| Blank / whitespace-only lines in list file    | Pass             | Blank lines were ignored in the tested case                      |
+| Duplicate genome entries in list file         | Pass with caveat | Duplicate entries are not deduplicated                           |
+| `.visual` output with duplicated contig names | Pass with caveat | Main metrics matched; duplicated headers reduce interpretability |
+| Extended-metrics sketch parity                | Pass             | Sketch and no-sketch extended metrics matched                    |
+| Mid-range ANI regression fixture              | Pass             | Real archived pair reproduced at `89.8641` ANI                   |
+| Sketch MD5 reproducibility sentinel           | Pass             | Two rebuilds produced identical sketch bytes                     |
 
 ## Build prerequisite for the manual checks below
 
@@ -62,8 +63,6 @@ cmake --build build --parallel
 These are repository tests, not one-off manual checks.
 
 ### Mixed-case sequence normalization
-
-Commit tested: `848cbc3`
 
 Purpose:
 
@@ -89,8 +88,6 @@ Interpretation:
 
 ### Batched sketch loading parity
 
-Commit tested: `848cbc3`
-
 Purpose:
 
 - verify that batched sketch loading does not reuse stale contig-to-genome
@@ -114,8 +111,6 @@ Interpretation:
 ## Manual edge-case validations
 
 ### Mid-range ANI regression fixture from archived results
-
-Commit tested: `b5b94f3`
 
 Purpose:
 
@@ -170,8 +165,6 @@ Interpretation:
   existing very-high-ANI D4 set alone
 
 ### Sketch MD5 reproducibility sentinel
-
-Commit tested: `b5b94f3`
 
 Purpose:
 
@@ -242,8 +235,6 @@ Interpretation:
 
 ### FASTA contig-header robustness
 
-Commit tested: `848cbc3`
-
 Purpose:
 
 - verify that unusual but valid FASTA contig headers do not change core ANI
@@ -287,8 +278,6 @@ Interpretation:
 
 ### Gzip-compressed FASTA parity
 
-Commit tested: `848cbc3`
-
 Purpose:
 
 - verify that gzip-compressed FASTA input produces the same ANI metrics as
@@ -324,8 +313,6 @@ Interpretation:
 
 ### Windows CRLF genome-list parsing
 
-Commit tested: `848cbc3`
-
 Purpose:
 
 - verify that a Windows-style `CRLF` list file is accepted in the tested case
@@ -359,8 +346,6 @@ Interpretation:
 - users should still prefer normal Unix line endings for reproducibility
 
 ### Default output to `stdout`
-
-Commit tested: `848cbc3`
 
 Purpose:
 
@@ -397,8 +382,6 @@ Interpretation:
 
 ### `--header` with `stdout`
 
-Commit tested: `848cbc3`
-
 Purpose:
 
 - verify that the header row is emitted correctly when writing to `stdout`
@@ -429,8 +412,6 @@ Query	Reference	ANI	MatchedFragments	TotalQueryFragments
 ```
 
 ### `--average-reciprocals` with extended metrics
-
-Commit tested: `848cbc3`
 
 Purpose:
 
@@ -469,8 +450,6 @@ Interpretation:
 
 ### `--matrix` without `-o`
 
-Commit tested: `848cbc3`
-
 Purpose:
 
 - verify that modes writing sidecar files fail clearly when no output prefix is
@@ -496,8 +475,6 @@ Interpretation:
 - failure mode is explicit and user-readable
 
 ### Blank and whitespace-only lines in genome lists
-
-Commit tested: `848cbc3`
 
 Purpose:
 
@@ -533,8 +510,6 @@ Interpretation:
 
 ### Duplicate genome entries in genome lists
 
-Commit tested: `848cbc3`
-
 Purpose:
 
 - determine whether duplicate list entries are deduplicated automatically
@@ -568,8 +543,6 @@ Interpretation:
 - this is accepted current behavior and should be documented for users
 
 ### `.visual` output with duplicated contig names
-
-Commit tested: `848cbc3`
 
 Purpose:
 
@@ -614,8 +587,6 @@ Interpretation:
   human interpretability
 
 ### Extended-metrics parity between sketch and no-sketch mode
-
-Commit tested: `848cbc3`
 
 Purpose:
 

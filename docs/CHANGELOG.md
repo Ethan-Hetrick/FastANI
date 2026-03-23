@@ -184,6 +184,22 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: changing mapping knobs can alter results, not just performance, and this needed to be explicit.
   Related commit: `a7cfea2`
 
+## Validation And Reproducibility
+
+- Added a committed mid-range ANI regression fixture using `Shigella_flexneri_2a_01` versus
+  `Escherichia_albertii_CP024282`.
+  Why: extend regression coverage beyond the very-high-ANI D4 panel and the existing
+  `E. coli`/`Shigella` comparison.
+  Related commit: `c7da4f7`
+
+- Added a sketch reproducibility sentinel based on a fixed reference list and expected MD5.
+  Why: detect unexpected sketch serialization drift in local hooks and GitHub Actions.
+  Related commit: `ab745d3`
+
+- Canonicalized sketch serialization order for the minimizer lookup index by writing keys in sorted order.
+  Why: raw sketch bytes previously depended on `unordered_map` iteration order, which reduced cross-environment
+  reproducibility and made the MD5 sentinel unreliable.
+
 ## Benchmarking, Validation, And Publication Materials
 
 - Added publication-oriented benchmark assets under `docs/pub`, including the benchmark runner, plotting script, dashboard image, and supporting data files.
