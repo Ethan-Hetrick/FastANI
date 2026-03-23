@@ -13,6 +13,7 @@ env:
   # CMake build type (Release, Debug, RelWithDebInfo, etc.)
   BUILD_TYPE: Debug
   CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
   Build-Test:
