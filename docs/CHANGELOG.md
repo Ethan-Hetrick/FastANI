@@ -200,6 +200,31 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: raw sketch bytes previously depended on `unordered_map` iteration order, which reduced cross-environment
   reproducibility and made the MD5 sentinel unreliable.
 
+- Canonicalized reference ordering during `--write-ref-sketch` using a lightweight content-derived key
+  based on usable genome length, contig count, smallest minimizer hash, and original path as a final
+  tie-breaker.
+  Why: preserve sketch reproducibility across reordered reference lists without depending on genome or
+  contig naming artifacts.
+
+- Added duplicate-input warnings for repeated query/reference paths in normal runs and a heuristic
+  warning for potentially identical references during sketch creation.
+  Why: duplicated or near-duplicated inputs are easy to miss in large workflows and can distort both
+  interpretation and sketch contents.
+
+## Project Hardening And Portability
+
+- Replaced `write-all` GitHub Actions permissions in the main CI workflow with least-privilege read access.
+  Why: reduce workflow token exposure and align the repository more closely with GitHub Actions hardening guidance.
+
+- Added `SECURITY.md`, `CODEOWNERS`, and `dependabot.yml`.
+  Why: improve vulnerability reporting, review ownership, and routine dependency maintenance without affecting runtime behavior.
+
+- Made `-march=native` optional via `FASTANI_NATIVE_OPTIMIZATION=ON` instead of enabling it by default for all release builds.
+  Why: improve portability and reproducibility of release binaries while still allowing host-optimized local benchmark builds.
+
+- Added dependency review, CodeQL scanning, and a lightweight GCC/Clang portability build matrix in GitHub Actions.
+  Why: improve supply-chain visibility, static-analysis coverage, and cross-compiler build confidence without changing runtime behavior.
+
 ## Benchmarking, Validation, And Publication Materials
 
 - Added publication-oriented benchmark assets under `docs/pub`, including the benchmark runner, plotting script, dashboard image, and supporting data files.

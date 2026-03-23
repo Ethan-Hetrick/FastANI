@@ -46,10 +46,12 @@ When adding a new validation entry:
 | `--matrix` without `-o`                       | Pass             | Tool failed cleanly with an explicit error                       |
 | Blank / whitespace-only lines in list file    | Pass             | Blank lines were ignored in the tested case                      |
 | Duplicate genome entries in list file         | Pass with caveat | Duplicate entries are not deduplicated                           |
+| Duplicate path warnings                       | Pass             | Exact repeated query/reference paths now warn explicitly         |
 | `.visual` output with duplicated contig names | Pass with caveat | Main metrics matched; duplicated headers reduce interpretability |
 | Extended-metrics sketch parity                | Pass             | Sketch and no-sketch extended metrics matched                    |
 | Mid-range ANI regression fixture              | Pass             | Real archived pair reproduced at `89.8641` ANI                   |
 | Sketch MD5 reproducibility sentinel           | Pass             | Two rebuilds produced identical sketch bytes                     |
+| Sketch write order invariance                 | Pass             | Reordered reference lists produced the same sketch file          |
 
 ## Build prerequisite for the manual checks below
 
@@ -232,6 +234,123 @@ Interpretation:
   serialization was stable across repeated rebuilds
 - future changes should preserve this hash unless sketch serialization is
   intentionally changed
+
+### Exact duplicate-path warnings in normal query/reference runs
+
+Purpose:
+
+- warn users when the same query or reference path is supplied multiple times in
+  list-based runs
+
+Procedure:
+
+```sh
+printf '%s\n%s\n' \
+  'tests/data/D4/2000031001.LargeContigs.fna' \
+  'tests/data/D4/2000031001.LargeContigs.fna' \
+  > /tmp/fastani-dup-query.txt
+
+build-order-check/fastANI \
+  --ql /tmp/fastani-dup-query.txt \
+  -r tests/data/D4/2000031004.LargeContigs.fna \
+  -o /tmp/dup-query.tsv
+```
+
+```sh
+printf '%s\n%s\n' \
+  'tests/data/D4/2000031004.LargeContigs.fna' \
+  'tests/data/D4/2000031004.LargeContigs.fna' \
+  > /tmp/fastani-dup-ref.txt
+
+build-order-check/fastANI \
+  -q tests/data/D4/2000031001.LargeContigs.fna \
+  --rl /tmp/fastani-dup-ref.txt \
+  -o /tmp/dup-ref.tsv
+```
+
+Observed result:
+
+- duplicate query warning:
+
+```text
+WARNING, duplicate query input path appears 2 times: tests/data/D4/2000031001.LargeContigs.fna
+```
+
+- duplicate reference warning:
+
+```text
+WARNING, duplicate reference input path appears 2 times: tests/data/D4/2000031004.LargeContigs.fna
+```
+
+Interpretation:
+
+- normal list-based runs are still allowed to proceed
+- the warning is intended to catch accidental duplication in pipelines without
+  silently rewriting the user's inputs
+
+### Sketch creation invariance to reference-list order
+
+Purpose:
+
+- verify that `--write-ref-sketch` produces the same sketch file when the same
+  reference set is supplied in different orders
+
+Procedure:
+
+```sh
+ctest --test-dir build-order-check --output-on-failure -R "Sketch creation is invariant to reference list order"
+```
+
+Observed result:
+
+- passed in `133.60 sec`
+
+Artifact check:
+
+```text
+d1e1c7691e571629c371c6fc0779463e  build-order-check/sketch-order-a.0
+d1e1c7691e571629c371c6fc0779463e  build-order-check/sketch-order-b.0
+```
+
+Interpretation:
+
+- sketch writing is now insensitive to reference-list ordering for the tested
+  reference set
+- canonical ordering is based on a lightweight content-derived key:
+  usable genome length, contig count, smallest minimizer hash, and original path
+  as a final tie-breaker
+
+### Heuristic duplicate-reference warning during sketch creation
+
+Purpose:
+
+- flag potentially identical reference inputs before writing a sketch
+
+Procedure:
+
+```sh
+printf '%s\n%s\n' \
+  'tests/data/D4/2000031001.LargeContigs.fna' \
+  'tests/data/D4/2000031001.LargeContigs.fna' \
+  > /tmp/fastani-dup-refs.txt
+
+build-order-check/fastANI \
+  --rl /tmp/fastani-dup-refs.txt \
+  --write-ref-sketch /tmp/fastani-dup-sketch \
+  -t 1
+```
+
+Observed result:
+
+```text
+WARNING, sketch creation found potentially identical reference inputs based on (usable_genome_length, contig_count, smallest_minimizer_hash): [tests/data/D4/2000031001.LargeContigs.fna, tests/data/D4/2000031001.LargeContigs.fna]
+```
+
+Interpretation:
+
+- this is a practical heuristic warning, not a strict identity proof
+- it is designed to catch likely duplicate genomes without depending on genome
+  names or contig headers
 
 ### FASTA contig-header robustness
 

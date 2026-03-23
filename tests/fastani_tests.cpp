@@ -8,6 +8,7 @@
 #include <sstream>
 #include <cctype>
 #include <cstdio>
+#include <iterator>
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -49,6 +50,13 @@ std::vector<CGIEntry> read_fastani_output(const std::string &fname)
     fastani_entries.push_back(cgx);
   }
   return fastani_entries;
+}
+
+std::vector<char> read_binary_file(const std::string &fname)
+{
+  std::ifstream ifile(fname, std::ios::binary);
+  return std::vector<char>((std::istreambuf_iterator<char>(ifile)),
+                           std::istreambuf_iterator<char>());
 }
 
 void write_lines(const std::string &fname, const std::vector<std::string> &lines)
@@ -654,4 +662,44 @@ TEST_CASE("Batched sketch loading matches non-batched output", "[batched sketch 
   REQUIRE(noSketch.size() == 4);
   REQUIRE(noSketch == sketchAll);
   REQUIRE(noSketch == sketchBatch);
+}
+
+TEST_CASE("Sketch creation is invariant to reference list order", "[sketch write order invariance]")
+{
+  write_lines("sketch-order-a.txt", {
+                                      "data/D4/2000031001.LargeContigs.fna",
+                                      "data/D4/2000031004.LargeContigs.fna",
+                                      "data/D4/2000031008.LargeContigs.fna",
+                                      "data/D4/2000031009.LargeContigs.fna",
+                                    });
+
+  write_lines("sketch-order-b.txt", {
+                                      "data/D4/2000031009.LargeContigs.fna",
+                                      "data/D4/2000031008.LargeContigs.fna",
+                                      "data/D4/2000031004.LargeContigs.fna",
+                                      "data/D4/2000031001.LargeContigs.fna",
+                                    });
+
+  const char *writeSketchAArgv[] = {"write-sketch-order-a",
+                                    "--rl",
+                                    "sketch-order-a.txt",
+                                    "--write-ref-sketch",
+                                    "sketch-order-a",
+                                    "-t",
+                                    "1"};
+  core_genome_identity(7, const_cast<char **>(writeSketchAArgv));
+
+  const char *writeSketchBArgv[] = {"write-sketch-order-b",
+                                    "--rl",
+                                    "sketch-order-b.txt",
+                                    "--write-ref-sketch",
+                                    "sketch-order-b",
+                                    "-t",
+                                    "1"};
+  core_genome_identity(7, const_cast<char **>(writeSketchBArgv));
+
+  auto sketchA = read_binary_file("sketch-order-a.0");
+  auto sketchB = read_binary_file("sketch-order-b.0");
+
+  REQUIRE(sketchA == sketchB);
 }

@@ -28,6 +28,13 @@ cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j
 ```
 
+This default release build favors portability across machines. If you want a
+host-optimized local benchmark build, enable:
+
+```sh
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DFASTANI_NATIVE_OPTIMIZATION=ON
+```
+
 This produces the executable at:
 
 ```text
@@ -101,6 +108,11 @@ Useful CMake options
 `-DBUILD_TESTING=ON`
 - Build the test suite. This requires initializing submodules first with
   `git submodule update --init --recursive`.
+
+`-DFASTANI_NATIVE_OPTIMIZATION=ON`
+- Add `-march=native` for host-optimized local builds. This can improve speed on
+  the current machine, but it reduces portability and can make binaries harder to
+  compare across systems.
 
 
 Notes
