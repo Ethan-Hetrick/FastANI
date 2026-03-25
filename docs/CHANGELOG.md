@@ -170,6 +170,9 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: expose a continuum between minimum memory and maximum speed instead of a single one-shard-at-a-time mode.
   Related commit: `3ebaf07`
 
+- Simplified cached query storage so the batched sketch path retains only fragment length, names, and cached minimizers instead of keeping a second copy of fragment sequence data.
+  Why: the cached replay path only needs fragment length and minimizers after query-side sketching is done, so retaining raw or packed fragment sequence was wasted memory.
+
 - Added memory-planning heuristics for both query-time batched sketch use and sketch creation.
   Why: make the new runtime/memory controls easier to deploy on HPC and cloud systems.
   Related commit: `e9c4c21`

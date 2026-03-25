@@ -64,14 +64,15 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
 
         CachedQueryFragment frag;
         frag.name = seq->name.s;
-        frag.sequence.assign(seq->seq.s + i * param.minReadLength, param.minReadLength);
+        std::string fragmentSequence(seq->seq.s + i * param.minReadLength, param.minReadLength);
+        frag.sequenceLength = static_cast<offset_t>(fragmentSequence.size());
         frag.seqCounter = seqCounter + i;
 
         kseq_t seqView = *seq;
         seqView.name.s = const_cast<char *>(frag.name.c_str());
         seqView.name.l = static_cast<int>(frag.name.size());
-        seqView.seq.s = const_cast<char *>(frag.sequence.data());
-        seqView.seq.l = static_cast<int>(frag.sequence.size());
+        seqView.seq.s = const_cast<char *>(fragmentSequence.data());
+        seqView.seq.l = static_cast<int>(fragmentSequence.size());
 
         CommonFunc::addMinimizers(frag.minimizerTableQuery, &seqView, param.kmerSize,
                                   param.windowSize, param.alphabetSize);
@@ -293,9 +294,9 @@ private:
       seqView.name.s = const_cast<char *>(frag.name.c_str());
       seqView.name.l = static_cast<int>(frag.name.size());
       seqView.name.m = static_cast<int>(frag.name.size());
-      seqView.seq.s = const_cast<char *>(frag.sequence.data());
-      seqView.seq.l = static_cast<int>(frag.sequence.size());
-      seqView.seq.m = static_cast<int>(frag.sequence.size());
+      seqView.seq.s = nullptr;
+      seqView.seq.l = static_cast<int>(frag.sequenceLength);
+      seqView.seq.m = 0;
 
       struct PreparedQueryMetaData
       {

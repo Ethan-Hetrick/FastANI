@@ -4,7 +4,7 @@
  * @author  Chirag Jain <cjain7@gatech.edu>
  */
 
-#ifndef BASE_TYPES_MAP_HPP 
+#ifndef BASE_TYPES_MAP_HPP
 #define BASE_TYPES_MAP_HPP
 
 #include <tuple>
@@ -14,113 +14,139 @@
 
 namespace skch
 {
-  typedef uint32_t hash_t;    //hash type
-  typedef int offset_t;       //position within sequence
-  typedef int seqno_t;        //sequence counter in file
+typedef uint32_t hash_t; // hash type
+typedef int offset_t;    // position within sequence
+typedef int seqno_t;     // sequence counter in file
 
-  //C++ timer
-  typedef std::chrono::high_resolution_clock Time;
+// C++ timer
+typedef std::chrono::high_resolution_clock Time;
 
-  //Information about each minimizer
-  struct MinimizerInfo
+// Information about each minimizer
+struct MinimizerInfo
+{
+  hash_t hash;   // hash value
+  seqno_t seqId; // sequence or contig id
+  offset_t wpos; // First (left-most) window position when the minimizer is saved
+
+  // Lexographical less than comparison
+  bool operator<(const MinimizerInfo &x)
   {
-    hash_t hash;                              //hash value
-    seqno_t seqId;                            //sequence or contig id
-    offset_t wpos;                            //First (left-most) window position when the minimizer is saved
+    return std::tie(hash, seqId, wpos) < std::tie(x.hash, x.seqId, x.wpos);
+  }
 
-    //Lexographical less than comparison
-    bool operator <(const MinimizerInfo& x) {
-      return std::tie(hash, seqId, wpos) 
-        < std::tie(x.hash, x.seqId, x.wpos);
-    }
-
-    //Lexographical equality comparison
-    bool operator ==(const MinimizerInfo& x) {
-      return std::tie(hash, seqId, wpos) 
-        == std::tie(x.hash, x.seqId, x.wpos);
-    }
-
-    bool operator !=(const MinimizerInfo& x) {
-      return std::tie(hash, seqId, wpos) 
-        != std::tie(x.hash, x.seqId, x.wpos);
-    }
-
-    static bool equalityByHash(const MinimizerInfo& x, const MinimizerInfo& y) {
-      return x.hash == y.hash;
-    }
-
-    static bool lessByHash(const MinimizerInfo& x, const MinimizerInfo& y) {
-      return x.hash < y.hash;
-    }
-
-  };
-
-  //Type for map value type used for
-  //L1 stage lookup index
-  struct MinimizerMetaData
+  // Lexographical equality comparison
+  bool operator==(const MinimizerInfo &x)
   {
-    seqno_t seqId;          //sequence or contig id
-    offset_t wpos;          //window position (left-most window)
+    return std::tie(hash, seqId, wpos) == std::tie(x.hash, x.seqId, x.wpos);
+  }
 
-    bool operator <(const MinimizerMetaData& x) const {
-      return std::tie(seqId, wpos) 
-        < std::tie(x.seqId, x.wpos);
-    }
-  };
-
-  typedef hash_t MinimizerMapKeyType;
-  typedef std::vector<MinimizerMetaData> MinimizerMapValueType;
-
-  //Metadata recording for contigs in the reference DB
-  struct ContigInfo
+  bool operator!=(const MinimizerInfo &x)
   {
-    std::string name;       //Name of the sequence
-    offset_t len;           //Length of the sequence
-  };
+    return std::tie(hash, seqId, wpos) != std::tie(x.hash, x.seqId, x.wpos);
+  }
 
-  //Information about query sequence during L1/L2 mapping
-  template <typename KSEQ, typename MinimizerVec>
-    struct QueryMetaData
-    {
-      KSEQ kseq;                          //query sequence object pointer (kseq library) 
-      seqno_t seqCounter;                 //query sequence counter
-      int sketchSize;                     //sketch size
-      MinimizerVec minimizerTableQuery;   //Vector of minimizers in the query 
-    };
-
-  struct CachedQueryFragment
+  static bool equalityByHash(const MinimizerInfo &x, const MinimizerInfo &y)
   {
-    std::string name;
-    std::string sequence;
-    seqno_t seqCounter;
-    int sketchSize;
-    std::vector<MinimizerInfo> minimizerTableQuery;
-  };
+    return x.hash == y.hash;
+  }
 
-  struct CachedQueryData
+  static bool lessByHash(const MinimizerInfo &x, const MinimizerInfo &y)
   {
-    std::vector<ContigInfo> metadata;
-    std::vector<CachedQueryFragment> fragments;
-    uint64_t totalQueryFragments = 0;
-  };
+    return x.hash < y.hash;
+  }
+};
 
-  //Final mapping result
-  struct MappingResult
+// Type for map value type used for
+// L1 stage lookup index
+struct MinimizerMetaData
+{
+  seqno_t seqId; // sequence or contig id
+  offset_t wpos; // window position (left-most window)
+
+  bool operator<(const MinimizerMetaData &x) const
   {
-    offset_t queryLen;                //length of the query sequence
-    offset_t refStartPos;             //start position of the mapping on reference
-    offset_t refEndPos;               //end pos
-    offset_t queryStartPos;           //start position of the query for this mapping
-    offset_t queryEndPos;             //end position of the query for this mapping
-    seqno_t refSeqId;                 //internal sequence id of the reference contig
-    seqno_t querySeqId;               //internal sequence id of the query sequence
-    float nucIdentity;                //calculated identity
-    float nucIdentityUpperBound;      //upper bound on identity (90% C.I.)
-    int sketchSize;                   //sketch size
-    int conservedSketches;            //count of conserved sketches
-  };
+    return std::tie(seqId, wpos) < std::tie(x.seqId, x.wpos);
+  }
+};
 
-  typedef std::vector<MappingResult> MappingResultsVector_t;
-}
+typedef hash_t MinimizerMapKeyType;
+typedef std::vector<MinimizerMetaData> MinimizerMapValueType;
+
+// Metadata recording for contigs in the reference DB
+struct ContigInfo
+{
+  std::string name; // Name of the sequence
+  offset_t len;     // Length of the sequence
+};
+
+// Information about query sequence during L1/L2 mapping
+template <typename KSEQ, typename MinimizerVec> struct QueryMetaData
+{
+  KSEQ kseq;                        // query sequence object pointer (kseq library)
+  seqno_t seqCounter;               // query sequence counter
+  int sketchSize;                   // sketch size
+  MinimizerVec minimizerTableQuery; // Vector of minimizers in the query
+};
+
+struct CachedQueryFragment
+{
+  std::string name;
+  offset_t sequenceLength = 0;
+  seqno_t seqCounter;
+  int sketchSize;
+  std::vector<MinimizerInfo> minimizerTableQuery;
+
+  size_t legacySequenceBytes() const
+  {
+    return static_cast<size_t>(sequenceLength);
+  }
+
+  size_t storedSequenceBytes() const
+  {
+    return 0;
+  }
+};
+
+struct CachedQueryData
+{
+  std::vector<ContigInfo> metadata;
+  std::vector<CachedQueryFragment> fragments;
+  uint64_t totalQueryFragments = 0;
+
+  size_t legacySequenceBytes() const
+  {
+    size_t total = 0;
+    for (const auto &frag : fragments)
+      total += frag.legacySequenceBytes();
+    return total;
+  }
+
+  size_t storedSequenceBytes() const
+  {
+    size_t total = 0;
+    for (const auto &frag : fragments)
+      total += frag.storedSequenceBytes();
+    return total;
+  }
+};
+
+// Final mapping result
+struct MappingResult
+{
+  offset_t queryLen;           // length of the query sequence
+  offset_t refStartPos;        // start position of the mapping on reference
+  offset_t refEndPos;          // end pos
+  offset_t queryStartPos;      // start position of the query for this mapping
+  offset_t queryEndPos;        // end position of the query for this mapping
+  seqno_t refSeqId;            // internal sequence id of the reference contig
+  seqno_t querySeqId;          // internal sequence id of the query sequence
+  float nucIdentity;           // calculated identity
+  float nucIdentityUpperBound; // upper bound on identity (90% C.I.)
+  int sketchSize;              // sketch size
+  int conservedSketches;       // count of conserved sketches
+};
+
+typedef std::vector<MappingResult> MappingResultsVector_t;
+} // namespace skch
 
 #endif
