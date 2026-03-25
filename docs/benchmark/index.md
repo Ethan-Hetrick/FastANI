@@ -6,7 +6,6 @@ evaluation work.
 
 Start with:
 
-- [Session context](FUTURE_SESSION_CONTEXT.md)
 - [Benchmark commands](BENCHMARK_COMMANDS.md)
 
 Key generated assets live under:
