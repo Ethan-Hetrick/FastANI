@@ -299,11 +299,12 @@ private:
     l1Mappings.reserve(64);
     MappingResultsVector_t l2Mappings;
     l2Mappings.reserve(8);
+    std::vector<MinimizerMetaData> seedHitsL1;
+    kseq_t seqView{};
 
     for (const auto &frag : cachedQuery.fragments)
     {
       const std::string &fragName = cachedQuery.fragmentNames[frag.nameIndex];
-      kseq_t seqView{};
       seqView.name.s = const_cast<char *>(fragName.c_str());
       seqView.name.l = static_cast<int>(fragName.size());
       seqView.name.m = static_cast<int>(fragName.size());
@@ -319,7 +320,7 @@ private:
         const MinVec_Type &minimizerTableQuery;
       } Q{&seqView, frag.seqCounter, frag.sketchSize, frag.minimizerTableQuery};
 
-      mapSinglePreparedQuerySeq(Q, l1Mappings, l2Mappings, outstrm);
+      mapSinglePreparedQuerySeq(Q, l1Mappings, l2Mappings, seedHitsL1, outstrm);
     }
   }
 
@@ -365,10 +366,12 @@ private:
 
   template <typename Q_Info>
   inline void mapSinglePreparedQuerySeq(Q_Info &Q, std::vector<L1_candidateLocus_t> &l1Mappings,
-                                        MappingResultsVector_t &l2Mappings, std::ofstream &outstrm)
+                                        MappingResultsVector_t &l2Mappings,
+                                        std::vector<MinimizerMetaData> &seedHitsL1,
+                                        std::ofstream &outstrm)
   {
     l2Mappings.clear();
-    doL1MappingPrepared(Q, l1Mappings);
+    doL1MappingPrepared(Q, l1Mappings, seedHitsL1);
     doL2Mapping(Q, l1Mappings, l2Mappings);
     reportL2Mappings(l2Mappings, outstrm);
   }
@@ -447,11 +450,11 @@ private:
     this->computeL1CandidateRegions(Q, seedHitsL1, minimumHits, l1Mappings);
   }
 
-  template <typename Q_Info, typename Vec> void doL1MappingPrepared(Q_Info &Q, Vec &l1Mappings)
+  template <typename Q_Info, typename Vec>
+  void doL1MappingPrepared(Q_Info &Q, Vec &l1Mappings, std::vector<MinimizerMetaData> &seedHitsL1)
   {
-    std::vector<MinimizerMetaData> seedHitsL1;
-
     l1Mappings.clear();
+    seedHitsL1.clear();
 
     if (Q.sketchSize == 0)
       return;
