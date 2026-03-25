@@ -203,6 +203,7 @@ inline Sketch loadReferenceSketch(const Parameters &parameters, const std::strin
   if (!in)
     throw std::runtime_error("ERROR: failed while reading sketch file");
 
+  sketch.buildDerivedMetadata();
   sketch.computeFreqHist();
   return sketch;
 }

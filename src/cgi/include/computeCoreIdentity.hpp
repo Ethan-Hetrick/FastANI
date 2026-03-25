@@ -33,31 +33,12 @@ namespace cgi
  */
 void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::Sketch &refSketch)
 {
-  static thread_local std::vector<int> contigToGenomeId;
-
-  const size_t numContigs = refSketch.metadata.size();
-
-  contigToGenomeId.assign(numContigs, -1);
-
-  size_t start = 0;
-  for (size_t genomeId = 0; genomeId < refSketch.sequencesByFileInfo.size(); genomeId++)
-  {
-    const size_t end = static_cast<size_t>(refSketch.sequencesByFileInfo[genomeId]);
-
-    for (size_t contigId = start; contigId < end && contigId < numContigs; contigId++)
-    {
-      contigToGenomeId[contigId] = static_cast<int>(genomeId);
-    }
-
-    start = end;
-  }
-
   for (auto &r : shortResults)
   {
     const size_t contigId = static_cast<size_t>(r.refSequenceId);
 
-    if (contigId < contigToGenomeId.size())
-      r.genomeId = contigToGenomeId[contigId];
+    if (contigId < refSketch.contigToGenomeId.size())
+      r.genomeId = refSketch.contigToGenomeId[contigId];
   }
 }
 
@@ -68,71 +49,20 @@ void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::S
 void computeGenomeLengths(skch::Parameters &parameters,
                           std::unordered_map<std::string, uint64_t> &genomeLengths)
 {
-  for (auto &e : parameters.querySequences)
+  for (size_t i = 0; i < parameters.querySequences.size(); i++)
   {
-    // Open the file using kseq
-    gzFile fp = gzopen(e.c_str(), "r");
-    gzbuffer(fp, 1 << 20); // 1MB read buffer
-    kseq_t *seq = kseq_init(fp);
-    int l;
     uint64_t genomeLen = 0;
-
-    while ((l = kseq_read(seq)) >= 0)
-    {
-      if (l >= parameters.minReadLength)
-      {
-        uint64_t _l_ =
-          (((uint64_t)seq->seq.l) / parameters.minReadLength) * parameters.minReadLength;
-        genomeLen = genomeLen + _l_;
-      }
-    }
-
-    genomeLengths[e] = genomeLen;
-
-    kseq_destroy(seq);
-    gzclose(fp); // close the file handler
+    if (i < parameters.querySequenceLengths.size())
+      genomeLen = parameters.querySequenceLengths[i];
+    genomeLengths[parameters.querySequences[i]] = genomeLen;
   }
 
-  if (parameters.loadSketchMode)
+  for (size_t i = 0; i < parameters.refSequences.size(); i++)
   {
-    for (size_t i = 0; i < parameters.refSequences.size(); i++)
-    {
-      uint64_t genomeLen = 0;
-
-      if (i < parameters.refSequenceLengths.size())
-        genomeLen = parameters.refSequenceLengths[i];
-
-      genomeLengths[parameters.refSequences[i]] = genomeLen;
-    }
-  }
-  else
-  {
-    for (auto &e : parameters.refSequences)
-    {
-      if (genomeLengths.find(e) == genomeLengths.end())
-      {
-        gzFile fp = gzopen(e.c_str(), "r");
-        gzbuffer(fp, 1 << 20); // 1MB read buffer
-        kseq_t *seq = kseq_init(fp);
-        int l;
-        uint64_t genomeLen = 0;
-
-        while ((l = kseq_read(seq)) >= 0)
-        {
-          if (l >= parameters.minReadLength)
-          {
-            uint64_t _l_ =
-              (((uint64_t)seq->seq.l) / parameters.minReadLength) * parameters.minReadLength;
-            genomeLen = genomeLen + _l_;
-          }
-        }
-
-        genomeLengths[e] = genomeLen;
-
-        kseq_destroy(seq);
-        gzclose(fp); // close the file handler
-      }
-    }
+    uint64_t genomeLen = 0;
+    if (i < parameters.refSequenceLengths.size())
+      genomeLen = parameters.refSequenceLengths[i];
+    genomeLengths[parameters.refSequences[i]] = genomeLen;
   }
 }
 
@@ -156,7 +86,6 @@ void outputVisualizationFile(skch::Parameters &parameters,
 
   // Shift offsets for converting from local (to contig) to global (to genome)
   std::vector<skch::offset_t> queryOffsetAdder(mapper.metadata.size());
-  std::vector<skch::offset_t> refOffsetAdder(refSketch.metadata.size());
 
   for (int i = 0; i < mapper.metadata.size(); i++)
   {
@@ -164,14 +93,6 @@ void outputVisualizationFile(skch::Parameters &parameters,
       queryOffsetAdder[i] = 0;
     else
       queryOffsetAdder[i] = queryOffsetAdder[i - 1] + mapper.metadata[i - 1].len;
-  }
-
-  for (int i = 0; i < refSketch.metadata.size(); i++)
-  {
-    if (i == 0)
-      refOffsetAdder[i] = 0;
-    else
-      refOffsetAdder[i] = refOffsetAdder[i - 1] + refSketch.metadata[i - 1].len;
   }
 
   // Report all mappings that contribute to core-genome identity estimate
@@ -187,8 +108,9 @@ void outputVisualizationFile(skch::Parameters &parameters,
             << "NA"
             << "\t" << e.queryStartPos + queryOffsetAdder[e.querySeqId] << "\t"
             << e.queryStartPos + parameters.minReadLength - 1 + queryOffsetAdder[e.querySeqId]
-            << "\t" << e.refStartPos + refOffsetAdder[e.refSequenceId] << "\t"
-            << e.refStartPos + parameters.minReadLength - 1 + refOffsetAdder[e.refSequenceId]
+            << "\t" << e.refStartPos + refSketch.refOffsetAdder[e.refSequenceId] << "\t"
+            << e.refStartPos + parameters.minReadLength - 1 +
+                 refSketch.refOffsetAdder[e.refSequenceId]
             << "\t"
             << "NA"
             << "\t"

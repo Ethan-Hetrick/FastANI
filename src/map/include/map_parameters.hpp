@@ -35,7 +35,9 @@ struct Parameters
   std::vector<uint64_t>
     refSequenceLengths; // reference genome lengths aligned with refSequences when available
   std::vector<std::string> querySequences; // query sequence(s)
-  std::string outFileName;                 // output file name
+  // query genome lengths aligned with querySequences when available
+  std::vector<uint64_t> querySequenceLengths;
+  std::string outFileName; // output file name
   std::string writeRefSketchFile = "";
   bool writeRefSketchMode = false;
   std::string sketchFile;

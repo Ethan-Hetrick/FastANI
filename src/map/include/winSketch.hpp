@@ -75,6 +75,9 @@ public:
 
   // Original reference file paths, one per genome/file in sequencesByFileInfo.
   std::vector<std::string> referenceFiles;
+  std::vector<seqno_t> contigToGenomeId;
+  std::vector<offset_t> refOffsetAdder;
+  std::vector<uint64_t> genomeLengthsByFile;
 
   // Index for fast seed lookup
   /*
@@ -235,6 +238,38 @@ private:
     if (omp_get_thread_num() == 0)
       std::cerr << "INFO [thread 0], skch::Sketch::build, minimizers picked from reference = "
                 << minimizerIndex.size() << std::endl;
+
+    this->buildDerivedMetadata();
+  }
+
+  void buildDerivedMetadata()
+  {
+    contigToGenomeId.assign(metadata.size(), -1);
+    refOffsetAdder.resize(metadata.size());
+    genomeLengthsByFile.assign(sequencesByFileInfo.size(), 0);
+
+    size_t start = 0;
+    offset_t runningOffset = 0;
+    for (size_t genomeId = 0; genomeId < sequencesByFileInfo.size(); genomeId++)
+    {
+      const size_t end = static_cast<size_t>(sequencesByFileInfo[genomeId]);
+      uint64_t genomeLen = 0;
+
+      for (size_t contigId = start; contigId < end && contigId < metadata.size(); contigId++)
+      {
+        contigToGenomeId[contigId] = static_cast<seqno_t>(genomeId);
+        refOffsetAdder[contigId] = runningOffset;
+        runningOffset += metadata[contigId].len;
+
+        const uint64_t contigLen = static_cast<uint64_t>(metadata[contigId].len);
+        const uint64_t usableLen = (contigLen / static_cast<uint64_t>(param.minReadLength)) *
+                                   static_cast<uint64_t>(param.minReadLength);
+        genomeLen += usableLen;
+      }
+
+      genomeLengthsByFile[genomeId] = genomeLen;
+      start = end;
+    }
   }
 
   /**
