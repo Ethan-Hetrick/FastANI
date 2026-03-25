@@ -18,6 +18,8 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Related commits: `2df35bc`, `f1a5532`, `cbc0d21`, `3ebaf07`
 - Reduced repeated low-memory overhead by caching query-side work and skipping unnecessary sketch-load postprocessing.
   Related commits: `f1a5532`, `cbc0d21`
+- Added a later cache/locality optimization pass for sketch-backed querying and CGI postprocessing, reducing hot-structure size, flattening minimizer bucket payloads, simplifying cached query state, and cutting avoidable callback/output work.
+  Related commits: `43f663e`, `1e4feb8`, `da84cb4`, `b037e92`, `57e7aae`, `b558913`, `d6428f0`, `2dec82f`, `0db0bda`, `f34813d`
 - Improved query-side performance through buffer reuse, reduced copying, cheaper hot loops, and lower synchronization overhead.
   Related commits: `8467983`, `21081f2`, `1053186`, `6d75e89`, `accdccc`, `5b68ea8`, `1a947c3`, `b61a62e`, `792836a`, `eea33e0`, `cc0acd7`, `1641bee`
 - Improved sketch/reference build performance through I/O tuning, buffer reuse, uppercase checks, container sizing, and targeted regression fixes.
@@ -74,6 +76,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: some candidate micro-optimizations either regressed performance or were not stable enough to keep.
   Related commits: `78ac943`, `9b8871e`, `accdccc`, `a68d2eb`
 
+- Rejected several later micro-optimizations during the cache-optimization pass even when they preserved output parity.
+  Why: shrinking `MappingResult`, changing `SlideMapper::delete_ref()` to `lower_bound()`, and adding extra reserve hints in `doL2Mapping()` or CGI postprocessing did not produce consistent wins and often slowed the standard sketch path enough to fail the “keep it” bar.
+  Status: not retained; the branch keeps only the local changes that showed a clear or at least stable benefit on the repeated sketch-query workloads.
+
 ## Query Mapping Performance
 
 - Removed unnecessary seed-hit copying during L1 mapping.
@@ -111,6 +117,23 @@ The intent is to help a technical reviewer understand what changed, why it chang
 - Tightened hot-loop behavior in minimizer handling and mapping setup.
   Why: reduce overhead in very frequently executed code paths.
   Related commits: `eea33e0`, `cc0acd7`, `1641bee`
+
+- Reduced hot-query footprint and callback overhead in the later cache-optimization pass.
+  Why: the sketch-backed query path remained sensitive to cache locality and repeated bookkeeping even after the earlier mapping optimizations.
+  What changed:
+  - removed unused L2 mapping iterator state from the hot local mapping struct
+  - split cached fragment names away from hot cached-query records
+  - reused cached-query scratch buffers
+  - captured compact CGI mapping records directly instead of first materializing larger legacy result objects
+    Related commits: `43f663e`, `1e4feb8`, `da84cb4`, `0db0bda`, `f34813d`
+
+- Densified the minimizer lookup payload storage used in sketch-backed querying.
+  Why: replace per-bucket heap fragmentation and pointer chasing with contiguous payload spans while preserving the same lookup semantics.
+  Related commit: `b037e92`
+
+- Removed repeated metadata reconstruction from sketch-backed output generation.
+  Why: avoid rebuilding cached-query state, contig/genome lookup metadata, genome lengths, query offsets, and legacy `/dev/null` text output work on every repeated query path.
+  Related commits: `57e7aae`, `b558913`, `d6428f0`, `2dec82f`
 
 ## Sketch / Reference Build Performance
 
