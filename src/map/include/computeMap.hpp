@@ -122,11 +122,9 @@ public:
   // Type for Stage L2's predicted mapping coordinate within each L1 candidate
   struct L2_mapLocus_t
   {
-    seqno_t seqId;                 // sequence id where read is mapped
-    offset_t meanOptimalPos;       // Among multiple consecutive optimal positions, save the avg.
-    Sketch::MIIter_t optimalStart; // optimal start mapping position (begin iterator)
-    Sketch::MIIter_t optimalEnd;   // optimal end mapping position (end iterator)
-    int sharedSketchSize;          // count of shared sketch elements
+    seqno_t seqId;           // sequence id where read is mapped
+    offset_t meanOptimalPos; // Among multiple consecutive optimal positions, save the avg.
+    int sharedSketchSize;    // count of shared sketch elements
   };
 
 private:
@@ -638,8 +636,6 @@ private:
       if (slidemap.sharedSketchElements > l2_out.sharedSketchSize)
       {
         l2_out.sharedSketchSize = slidemap.sharedSketchElements;
-        l2_out.optimalStart = mi_L2iter.sw_beg;
-        l2_out.optimalEnd = mi_L2iter.sw_end;
 
         // Save the position
         beginOptimalPos = mi_L2iter.sw_beg->wpos;
