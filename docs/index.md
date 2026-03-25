@@ -108,15 +108,16 @@ fastANI --queryList queries.txt --refList references.txt --average-reciprocals -
 
 ### Output options
 
-| Parameter               | Default  | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                |
-| ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `-o, --output`          | `stdout` | Write the main tabular ANI results to this file. If omitted, the main tabular output is written to standard output.                                                                                                                                                                                                                       | Use `-o` when you want a file on disk; omit it when piping results to another tool.        |
-| `--write-ref-sketch`    | `false`  | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                |
-| `--matrix`              | `false`  | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                  |
-| `--average-reciprocals` | `false`  | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`. |
-| `--visualize`           | `false`  | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                             |
-| `--extended-metrics`    | `false`  | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                   |
-| `--header`              | `false`  | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                         |
+| Parameter               | Default  | Description                                                                                                                                                                                                                                                                                                                               | Typical use                                                                                    |
+| ----------------------- | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `-o, --output`          | `stdout` | Write the main tabular ANI results to this file. If omitted, the main tabular output is written to standard output.                                                                                                                                                                                                                       | Use `-o` when you want a file on disk; omit it when piping results to another tool.            |
+| `--write-ref-sketch`    | `false`  | Write a reference sketch database and exit. Requires `--ref` or `--refList`.                                                                                                                                                                                                                                                              | Use before repeated sketch-backed querying.                                                    |
+| `--matrix`              | `false`  | Also write ANI values to `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).                                                                                                                                                                                     | Use for all-vs-all matrix-style analyses.                                                      |
+| `--average-reciprocals` | `false`  | Average ANI and the extended fragment-level ANI summary metrics across reciprocal rows in the main tabular output only. The emitted row keeps a deterministic query/reference orientation, while `MatchedFragments`, `TotalQueryFragments`, `QueryAlignmentFraction`, and `ReferenceAlignmentFraction` remain tied to that displayed row. | Use when you want one sparse row per reciprocal genome pair without relying on `--matrix`.     |
+| `--visualize`           | `false`  | Also write fragment mappings to `<output>.visual` for each reported query/reference comparison.                                                                                                                                                                                                                                           | Use when plotting conserved regions for selected genome pairs.                                 |
+| `--frag-hist`           | `false`  | Also write a compact fragment identity sidecar file to `<output>.hist`. The file is structured as repeated blocks delimited by `//`, with `# Query` / `# Reference` headers followed by tab-delimited `identity<TAB>count` rows.                                                                                                          | Use when you want a compact fragment identity distribution for downstream histogramming or QC. |
+| `--extended-metrics`    | `false`  | Report additional fragment-level ANI summary fields in the main tabular output only, including query/reference alignment fractions and fragment-level ANI distribution summaries.                                                                                                                                                         | Use when you want more detailed fragment summary fields.                                       |
+| `--header`              | `false`  | Write a header row in the main tabular output only; it does not change `.matrix` or `.visual` sidecar files.                                                                                                                                                                                                                              | Use for easier downstream parsing.                                                             |
 
 The main output is a tab-delimited file. Each row reports:
 
@@ -386,8 +387,39 @@ Sidecar outputs:
 
 - `--matrix` writes `<output>.matrix` as a lower-triangular [PHYLIP-style matrix](https://www.mothur.org/wiki/Phylip-formatted_distance_matrix).
 - `--visualize` writes `<output>.visual` with fragment-level mappings for each reported query/reference comparison.
+- `--frag-hist` writes `<output>.hist` as repeated comparison blocks delimited by `//`, followed by `# Query`, `# Reference`, and tab-delimited `identity<TAB>count` rows.
 
-If you use `--average-reciprocals`, the main sparse output is symmetrized across reciprocal rows, but the `.matrix` and `.visual` sidecar files keep their existing behavior.
+If you use `--average-reciprocals`, the main sparse output is symmetrized across reciprocal rows, but the `.matrix`, `.visual`, and `.hist` sidecar files keep their existing per-direction behavior.
+
+<details>
+<summary>Example: compute the mean fragment identity from <code>--frag-hist</code> output</summary>
+
+<pre><code class="language-sh"># bash / awk
+awk '!/^#/ &amp;&amp; $0 != "//" &amp;&amp; NF {num += $1 * $2; den += $2} END {print num / den}' fastani.out.hist
+
+# python
+python3 - &lt;&lt;'PY'
+num = 0.0
+den = 0
+with open("fastani.out.hist") as fh:
+    for line in fh:
+        line = line.strip()
+        if not line or line.startswith("#") or line == "//":
+            continue
+        ident, count = line.split("\t")
+        num += float(ident) * int(count)
+        den += int(count)
+print(num / den)
+PY
+
+# R
+Rscript - &lt;&lt;'RS'
+lines &lt;- readLines("fastani.out.hist")
+body &lt;- lines[lines != "//" &amp; !grepl("^#", lines) &amp; nzchar(lines)]
+df &lt;- read.table(text = body, sep = "\t", col.names = c("identity", "count"))
+cat(weighted.mean(df$identity, df$count), "\n")
+RS</code></pre>
+</details>
 
 ## Example run
 

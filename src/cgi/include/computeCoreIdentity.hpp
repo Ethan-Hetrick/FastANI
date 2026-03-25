@@ -12,6 +12,7 @@
 #include <fstream>
 #include <iostream>
 #include <cmath>
+#include <iomanip>
 #include <omp.h>
 #include <zlib.h>
 
@@ -196,6 +197,45 @@ void outputVisualizationFile(skch::Parameters &parameters,
   }
 }
 
+inline std::string fragmentIdentityFileName(const std::string &fileName)
+{
+  return fileName + ".hist";
+}
+
+inline std::string fragmentIdentityTempFileName(const std::string &fileName, uint64_t splitIndex)
+{
+  return fragmentIdentityFileName(fileName) + std::to_string(splitIndex);
+}
+
+inline void outputFragmentIdentityFile(skch::Parameters &parameters,
+                                       const std::vector<float> &fragmentAnis, uint64_t queryFileNo,
+                                       skch::seqno_t refGenomeId, std::string &fileName,
+                                       uint64_t splitIndex)
+{
+  std::ofstream outstrm(fragmentIdentityTempFileName(fileName, splitIndex), std::ios::app);
+  if (!outstrm.good())
+  {
+    throw std::runtime_error("ERROR: unable to open fragment identity output file for writing");
+  }
+
+  outstrm << "//\n";
+  outstrm << "# Query: " << parameters.querySequences[queryFileNo] << "\n";
+  outstrm << "# Reference: " << parameters.refSequences[refGenomeId] << "\n";
+  outstrm << "# Identity\tCount\n";
+
+  for (size_t i = 0; i < fragmentAnis.size();)
+  {
+    const float v = fragmentAnis[i];
+    size_t j = i + 1;
+    while (j < fragmentAnis.size() && fragmentAnis[j] == v)
+      j++;
+    outstrm << std::fixed << std::setprecision(6) << v << "\t" << (j - i) << "\n";
+    i = j;
+  }
+
+  outstrm << "\n";
+}
+
 /**
  * @brief                             compute and report AAI/ANI
  * @param[in]   parameters            algorithm parameters
@@ -336,7 +376,7 @@ inline std::vector<CGI_Results> averageReciprocalResults(skch::Parameters &param
 void computeCGI(skch::Parameters &parameters, skch::MappingResultsVector_t &results,
                 skch::Map &mapper, skch::Sketch &refSketch, uint64_t totalQueryFragments,
                 uint64_t queryFileNo, std::string &fileName,
-                std::vector<cgi::CGI_Results> &CGI_ResultsVector)
+                std::vector<cgi::CGI_Results> &CGI_ResultsVector, uint64_t splitIndex)
 {
   // Vector to save relevant fields from mapping results
   std::vector<MappingResult_CGI> shortResults;
@@ -453,10 +493,11 @@ void computeCGI(skch::Parameters &parameters, skch::MappingResultsVector_t &resu
     currentResult.totalQueryFragments = totalQueryFragments;
     currentResult.identity = sumIdentity / currentResult.countSeq;
 
-    if (parameters.extendedMetrics)
-    {
+    if (parameters.extendedMetrics || parameters.fragHist)
       std::sort(fragmentAnis.begin(), fragmentAnis.end());
 
+    if (parameters.extendedMetrics)
+    {
       currentResult.frac99 =
         (currentResult.totalQueryFragments > 0)
           ? static_cast<float>(countGe99) / static_cast<float>(currentResult.totalQueryFragments)
@@ -466,6 +507,12 @@ void computeCGI(skch::Parameters &parameters, skch::MappingResultsVector_t &resu
       currentResult.q1Ani = percentileFromSorted(fragmentAnis, 0.25);
       currentResult.medianAni = percentileFromSorted(fragmentAnis, 0.50);
       currentResult.q3Ani = percentileFromSorted(fragmentAnis, 0.75);
+    }
+
+    if (parameters.fragHist)
+    {
+      outputFragmentIdentityFile(parameters, fragmentAnis, queryFileNo, currentGenomeId, fileName,
+                                 splitIndex);
     }
 
     CGI_ResultsVector.push_back(currentResult);

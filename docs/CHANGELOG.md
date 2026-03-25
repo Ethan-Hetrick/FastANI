@@ -148,6 +148,9 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: improve usability in scripted and downstream tabular workflows.
   Related commit: `e725145`
 
+- Added `--frag-hist` for compact fragment identity sidecar output.
+  Why: expose the per-fragment identity distribution in a cleaner format than `.visual` for downstream histogramming and quality analysis while avoiding one-file-per-pair output.
+
 - Clarified help text and README behavior for visualization, matrix output, sketch usage, and other option interactions.
   Why: several options affect only specific outputs or are incompatible in non-obvious ways.
   Related commits: `1b85092`, `794f443`, `4b40650`, `c0e8091`, `8605dda`

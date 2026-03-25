@@ -241,6 +241,7 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
   parameters.p_value = 1e-03;
   parameters.percentageIdentity = 80;
   parameters.visualize = false;
+  parameters.fragHist = false;
   parameters.matrixOutput = false;
   parameters.referenceSize = 5000000;
   parameters.maxRatioDiff = 100.0;
@@ -295,6 +296,12 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
       .doc("also write fragment mappings to <output>.visual for downstream visualization; valid "
            "for pairwise and multi-genome runs, but the bundled R plotting example is "
            "pairwise-oriented [disabled by default]");
+  auto frag_hist_cmd =
+    clipp::option("--frag-hist")
+      .set(parameters.fragHist)
+      .doc("also write a compact fragment identity sidecar to <output>.hist using repeated "
+           "//-delimited blocks with # Query/# Reference headers followed by tab-delimited "
+           "identity/count rows");
   auto extended_metrics_cmd =
     clipp::option("--extended-metrics")
       .set(parameters.extendedMetrics)
@@ -342,7 +349,7 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
   auto input_cli = (ref_cmd, refList_cmd, qry_cmd, qryList_cmd, sketch_cmd);
 
   auto output_cli = (output_cmd, write_ref_sketch_cmd, matrix_cmd, average_reciprocals_cmd,
-                     visualize_cmd, extended_metrics_cmd, header_cmd);
+                     visualize_cmd, frag_hist_cmd, extended_metrics_cmd, header_cmd);
 
   auto mapping_cli =
     (kmer_cmd, window_size_cmd, reference_size_cmd, fraglen_cmd, minfraction_cmd, maxratio_cmd);
@@ -365,7 +372,8 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
     "-q query.fa --sketch reference_sketch --batch-size 1 -o output.txt\n\nAll vs all comparison "
     "with query list, reference list, averaged reciprocals, and visualization mappings:\n$ fastANI "
     "--queryList queries.txt --refList references.txt --average-reciprocals --visualize -o "
-    "output.txt";
+    "output.txt\n\nPairwise comparison with fragment-identity sidecar output:\n$ fastANI -q "
+    "query.fa -r reference.fa --frag-hist -o output.txt";
 
   auto printHelp = [&]()
   {
@@ -450,10 +458,11 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
     exit(1);
   }
 
-  if (parameters.outFileName.empty() && (parameters.matrixOutput || parameters.visualize))
+  if (parameters.outFileName.empty() &&
+      (parameters.matrixOutput || parameters.visualize || parameters.fragHist))
   {
-    std::cerr << "ERROR, --matrix and --visualize require -o/--output because they write "
-                 "sidecar files\n";
+    std::cerr << "ERROR, --matrix, --visualize, and --frag-hist require -o/--output because "
+                 "they write sidecar files\n";
     exit(1);
   }
 

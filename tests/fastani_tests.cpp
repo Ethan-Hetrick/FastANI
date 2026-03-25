@@ -59,6 +59,16 @@ std::vector<char> read_binary_file(const std::string &fname)
                            std::istreambuf_iterator<char>());
 }
 
+std::vector<std::string> read_lines_preserve_order(const std::string &fname)
+{
+  std::vector<std::string> lines;
+  std::ifstream ifile(fname);
+  std::string line;
+  while (std::getline(ifile, line))
+    lines.push_back(line);
+  return lines;
+}
+
 void write_lines(const std::string &fname, const std::vector<std::string> &lines)
 {
   std::ofstream ofile(fname);
@@ -151,6 +161,50 @@ TEST_CASE("Single Threaded Pair Query Ref Mid-Range ANI", "[single threaded pair
   auto fx = get_file_contents("midrange-pair-test.txt");
   auto ref_fx = get_file_contents("data/shigella_vs_escherichia_albertii_cp024282.txt");
   REQUIRE(fx == ref_fx);
+}
+
+TEST_CASE("Single Threaded Pair Query Ref Fragment Identity Histogram",
+          "[single threaded pair][frag hist]")
+{
+  const char *argv[] = {"single-pair-frag-hist",
+                        "-q",
+                        "data/Escherichia_coli_str_K12_MG1655.fna",
+                        "-r",
+                        "data/Shigella_flexneri_2a_01.fna",
+                        "-o",
+                        "fraghist-test.txt",
+                        "--frag-hist"};
+
+  core_genome_identity(8, const_cast<char **>(argv));
+
+  auto finalResults = read_fastani_output("fraghist-test.txt");
+  REQUIRE(finalResults.size() == 1);
+
+  const std::string histFile = "fraghist-test.txt.hist";
+  auto histLines = read_lines_preserve_order(histFile);
+
+  REQUIRE(histLines[0] == "//");
+  REQUIRE(histLines[1] == "# Query: data/Escherichia_coli_str_K12_MG1655.fna");
+  REQUIRE(histLines[2] == "# Reference: data/Shigella_flexneri_2a_01.fna");
+  REQUIRE(histLines[3] == "# Identity\tCount");
+  REQUIRE(histLines.back().empty());
+
+  int expandedCount = 0;
+  for (std::size_t i = 4; i + 1 < histLines.size(); i++)
+  {
+    std::stringstream stx(histLines[i]);
+    float v;
+    int count;
+    stx >> v >> count;
+    const bool parsed = stx.good() || stx.eof();
+    REQUIRE(parsed);
+    REQUIRE(v >= 0.0f);
+    REQUIRE(v <= 100.0f);
+    REQUIRE(count >= 1);
+    expandedCount += count;
+  }
+
+  REQUIRE(expandedCount == finalResults[0].countSeq);
 }
 
 TEST_CASE("Single Threaded Multi Query", "[single threaded multi query]")

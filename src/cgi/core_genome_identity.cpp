@@ -10,6 +10,9 @@
 #include <functional>
 #include <fstream>
 #include <stdexcept>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <omp.h>
 #include <memory>
 
@@ -45,6 +48,91 @@ int detectSketchShardCount(const std::string &sketchPrefix)
   }
 
   return shardCount;
+}
+
+void removePathIfExists(const std::string &path)
+{
+  struct stat st = {};
+  if (stat(path.c_str(), &st) == 0)
+  {
+    if (S_ISDIR(st.st_mode))
+    {
+      DIR *dir = opendir(path.c_str());
+      if (dir != nullptr)
+      {
+        while (dirent *entry = readdir(dir))
+        {
+          const std::string name = entry->d_name;
+          if (name == "." || name == "..")
+            continue;
+          const std::string child = path + "/" + name;
+          unlink(child.c_str());
+        }
+        closedir(dir);
+      }
+      rmdir(path.c_str());
+    }
+    else
+    {
+      unlink(path.c_str());
+    }
+  }
+}
+
+void removeFragmentIdentityTempFiles(const std::string &fileName, int referenceSplitCount)
+{
+  const std::string finalHistFile = cgi::fragmentIdentityFileName(fileName);
+  removePathIfExists(finalHistFile);
+
+  for (int i = 0; i < referenceSplitCount; i++)
+  {
+    const std::string tmpHistFile =
+      cgi::fragmentIdentityTempFileName(fileName, static_cast<uint64_t>(i));
+    removePathIfExists(tmpHistFile);
+  }
+}
+
+void mergeFragmentIdentityFiles(const std::string &fileName, int referenceSplitCount)
+{
+  const std::string finalHistFile = cgi::fragmentIdentityFileName(fileName);
+  std::ofstream ofile(finalHistFile);
+  if (!ofile.good())
+  {
+    ofile.close();
+    removePathIfExists(finalHistFile);
+    ofile.open(finalHistFile);
+  }
+  if (!ofile.good())
+    throw std::runtime_error("ERROR: unable to create merged fragment identity output file");
+
+  for (int i = 0; i < referenceSplitCount; i++)
+  {
+    const std::string tmpHistFile =
+      cgi::fragmentIdentityTempFileName(fileName, static_cast<uint64_t>(i));
+    std::ifstream ifile(tmpHistFile);
+    if (!ifile.good())
+    {
+      ifile.close();
+      continue;
+    }
+
+    const int BUFFER_SIZE = 4096;
+    std::vector<char> buffer(BUFFER_SIZE + 1, 0);
+    while (true)
+    {
+      ifile.read(buffer.data(), BUFFER_SIZE);
+      std::streamsize s = ((ifile) ? BUFFER_SIZE : ifile.gcount());
+      buffer[s] = 0;
+      ofile << buffer.data();
+      if (!ifile)
+        break;
+    }
+
+    ifile.close();
+    unlink(tmpHistFile.c_str());
+  }
+
+  ofile.close();
 }
 } // namespace
 
@@ -87,6 +175,9 @@ int core_genome_identity(int argc, char **argv)
 
   std::vector<bool> sanityCheck(referenceSplitCount, true);
   std::vector<float> ratioDiffs(referenceSplitCount, true);
+
+  if (parameters.fragHist && !parameters.writeRefSketchMode)
+    removeFragmentIdentityTempFiles(fileName, referenceSplitCount);
 
   auto runReferenceSplit = [&](uint64_t i)
   {
@@ -214,7 +305,7 @@ int core_genome_identity(int argc, char **argv)
         t0 = skch::Time::now();
 
         cgi::computeCGI(parameters_split[i], mapResults, mapper, referSketch, totalQueryFragments,
-                        queryno, fileName, finalResults_local);
+                        queryno, fileName, finalResults_local, i);
 
         std::chrono::duration<double> timeCGI = skch::Time::now() - t0;
 
@@ -348,6 +439,9 @@ int core_genome_identity(int argc, char **argv)
     }
     ofile.close();
   }
+
+  if (parameters.fragHist)
+    mergeFragmentIdentityFiles(fileName, referenceSplitCount);
 
   return 0;
 }
