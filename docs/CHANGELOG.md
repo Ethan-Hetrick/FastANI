@@ -150,6 +150,8 @@ The intent is to help a technical reviewer understand what changed, why it chang
 
 - Added `--frag-hist` for compact fragment identity sidecar output.
   Why: expose the per-fragment identity distribution in a cleaner format than `.visual` for downstream histogramming and quality analysis while avoiding one-file-per-pair output.
+  Format: writes a single `<output>.hist` sidecar with repeated comparison blocks delimited by `//`,
+  followed by `# Query`, `# Reference`, and tab-delimited `identity<TAB>count` rows.
 
 - Clarified help text and README behavior for visualization, matrix output, sketch usage, and other option interactions.
   Why: several options affect only specific outputs or are incompatible in non-obvious ways.
