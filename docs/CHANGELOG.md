@@ -12,6 +12,8 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Related commits: `7d4f3c2`
 - Added richer tabular reporting with optional headers and extended fragment-level summary fields.
   Related commits: `b17b8cc`, `e725145`
+- Added additional user-facing execution and reporting controls, including `--reference-size`, reciprocal averaging, default `stdout` output, and fragment-identity histogram sidecars.
+  Related commits: `9fdb290`, `4ab624d`, `580946d`, `a0f8896`
 - Added sketch-backed memory/runtime control for query execution, first as single-shard low-memory mode and later generalized into `--batch-size`.
   Related commits: `2df35bc`, `f1a5532`, `cbc0d21`, `3ebaf07`
 - Reduced repeated low-memory overhead by caching query-side work and skipping unnecessary sketch-load postprocessing.
@@ -33,6 +35,20 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: batched sketch runs could silently reuse the wrong contig-to-genome mapping when two shards had the same contig count, and mixed-case sequence beyond the first 4096 bases could bypass uppercasing and alter hashing.
   Validation: added targeted regression tests for batched sketch parity and mixed-case query equivalence in `tests/fastani_tests.cpp`.
 
+- Corrected a transient iterator-increment bug encountered while tuning `doL1Mapping()`.
+  Why: one optimization draft accidentally changed the unique-minimizer loop from `++it` to a non-advancing iterator expression, which caused the mapper to hang on the first query. The retained `doL1Mapping()` cleanup keeps the reserve improvements but restores correct loop progression.
+  Related commit: `1641bee`
+
+- Restored the missing query-bucket reduction stage in `computeCGI`, fixing incorrect two-way ANI behavior after earlier optimization work.
+  Why: performance work is only useful if the core reciprocal ANI result remains correct.
+  Related commit: `e2df7e7`
+
+- Restored correct sketch-backed release-mode filtering and reference identity handling.
+  Why: sketch mode had started reporting different row counts in release builds because reference lengths and file identities were not preserved correctly through the sketch path.
+  Related commit: `f613abd`
+
+## Rejected Experiments And Reworked Changes
+
 - Evaluated and rejected a flat-array replacement for `minimizerPosLookupIndex` on the current benchmark workloads.
   Why: the prototype preserved output parity on the checked sketch-backed paths, but it regressed performance instead of improving it.
   Benchmark summary:
@@ -42,17 +58,21 @@ The intent is to help a technical reviewer understand what changed, why it chang
   - full `genome-list.txt` sketch query was still unfinished after more than `18` minutes, far worse than the prior `483.99s` full sketch-query wall time
     Decision: do not revive this specific “flat hash lookup array” approach without materially different design evidence and new benchmarks showing a clear win.
 
-- Restored the missing query-bucket reduction stage in `computeCGI`, fixing incorrect two-way ANI behavior after earlier optimization work.
-  Why: performance work is only useful if the core reciprocal ANI result remains correct.
-  Related commit: `e2df7e7`
+- Rejected a two-pass `Sketch::index()` bucket-sizing strategy that counted per-hash bucket sizes first, reserved exact vector capacity, and then filled the buckets in a second pass.
+  Why: the approach was mechanically sound, but `Sketch::index()` was too small a fraction of end-to-end runtime for the extra pass and added complexity to pay off on the measured workloads.
+  Status: not worth reviving unless future profiles show index construction becoming a first-order bottleneck on materially larger sketch builds.
+
+- Rejected a geometric-growth reserve tweak for `minimizerIndex` growth inside `addMinimizers()`.
+  Why: it reduced reserve-call churn mechanically, but it did not produce a meaningful whole-program speedup relative to the simpler hot-loop cleanup that was kept.
+  Related commits: `cc0acd7`, `a68d2eb`
+
+- Evaluated broader temporary-buffer reuse experiments around the mapping path and kept only the pieces that were measurably beneficial.
+  Why: some additional vector and metadata reuse ideas improved narrow micro-metrics without delivering a consistent end-to-end runtime win, so only the stable, low-risk reuse work was retained.
+  Related commits: `4da7057`, `9b8871e`, `accdccc`
 
 - Reverted or reworked a few performance changes that were not safe or beneficial in practice.
   Why: some candidate micro-optimizations either regressed performance or were not stable enough to keep.
   Related commits: `78ac943`, `9b8871e`, `accdccc`, `a68d2eb`
-
-- Restored correct sketch-backed release-mode filtering and reference identity handling.
-  Why: sketch mode had started reporting different row counts in release builds because reference lengths and file identities were not preserved correctly through the sketch path.
-  Related commit: `f613abd`
 
 ## Query Mapping Performance
 
@@ -148,6 +168,14 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: improve usability in scripted and downstream tabular workflows.
   Related commit: `e725145`
 
+- Added reciprocal averaging output mode.
+  Why: provide a sparse, matrix-like summary of reciprocal comparisons without forcing users into the legacy dense matrix output path.
+  Related commit: `4ab624d`
+
+- Made the main ANI table default to `stdout` when `-o` is omitted.
+  Why: improve shell composability, scheduler integration, and workflow-engine use without requiring a temporary output file for the primary tabular result.
+  Related commit: `580946d`
+
 - Added `--frag-hist` for compact fragment identity sidecar output.
   Why: expose the per-fragment identity distribution in a cleaner format than `.visual` for downstream histogramming and quality analysis while avoiding one-file-per-pair output.
   Format: writes a single `<output>.hist` sidecar with repeated comparison blocks delimited by `//`,
@@ -188,6 +216,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: make sketch density and runtime/sensitivity tradeoffs directly testable from the CLI.
   Related commit: `baa5571`
 
+- Added `--reference-size` control for automatic minimizer-table pre-sizing.
+  Why: expose a low-level sizing knob for users benchmarking or tuning sketch-build behavior on known reference collections while preserving the legacy default behavior when it is not provided.
+  Related commit: `9fdb290`
+
 - Documented the runtime/accuracy implications of non-default mapping parameters.
   Why: changing mapping knobs can alter results, not just performance, and this needed to be explicit.
   Related commit: `a7cfea2`
@@ -220,6 +252,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
   interpretation and sketch contents.
 
 ## Project Hardening And Portability
+
+- Made fresh clones configure successfully without requiring test submodules by default.
+  Why: users building only the main executable should not have to initialize `Catch2` just to complete a normal release configure/build.
+  Related commit: `054d2b2`
 
 - Replaced `write-all` GitHub Actions permissions in the main CI workflow with least-privilege read access.
   Why: reduce workflow token exposure and align the repository more closely with GitHub Actions hardening guidance.
