@@ -285,29 +285,27 @@ inline std::vector<CGI_Results> averageReciprocalResults(skch::Parameters &param
   return averagedResults;
 }
 
-void computeCGI(skch::Parameters &parameters, skch::MappingResultsVector_t &results,
+inline void insertL2ResultsToCGIVec(std::vector<MappingResult_CGI> &v,
+                                    const skch::MappingResult &reportedL2Result)
+{
+  MappingResult_CGI compactResult;
+  compactResult.refSequenceId = reportedL2Result.refSeqId;
+  compactResult.genomeId = 0; // revised later to genome id
+  compactResult.querySeqId = reportedL2Result.querySeqId;
+  compactResult.refStartPos = reportedL2Result.refStartPos;
+  compactResult.queryStartPos = reportedL2Result.queryStartPos;
+  compactResult.blockN = reportedL2Result.refStartPos / (reportedL2Result.queryLen - 20);
+  compactResult.nucIdentity = reportedL2Result.nucIdentity;
+  v.push_back(compactResult);
+}
+
+void computeCGI(skch::Parameters &parameters, std::vector<MappingResult_CGI> &shortResults,
                 skch::Map &mapper, skch::Sketch &refSketch, uint64_t totalQueryFragments,
                 uint64_t queryFileNo, std::string &fileName,
                 std::vector<cgi::CGI_Results> &CGI_ResultsVector, uint64_t splitIndex)
 {
-  // Vector to save relevant fields from mapping results
-  std::vector<MappingResult_CGI> shortResults;
-
-  shortResults.reserve(results.size());
-
   // Note to self: For debugging any issue, it is often useful to print
   // shortResults, mappings_1way and mappings_2way vectors
-
-  /// Parse map results and save fields which we need
-  // reference id (R), query id (Q), estimated identity (I)
-  for (auto &e : results)
-  {
-    shortResults.emplace_back(MappingResult_CGI{e.refSeqId,
-                                                0, // this value will be revised to genome id
-                                                e.querySeqId, e.refStartPos, e.queryStartPos,
-                                                e.refStartPos / (parameters.minReadLength - 20),
-                                                e.nucIdentity});
-  }
 
   /*
    * NOTE: We assume single file contains the sequences for single genome

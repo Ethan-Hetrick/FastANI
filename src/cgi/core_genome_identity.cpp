@@ -270,10 +270,10 @@ int core_genome_identity(int argc, char **argv)
       {
         t0 = skch::Time::now();
 
-        skch::MappingResultsVector_t mapResults;
+        std::vector<cgi::MappingResult_CGI> mapResults;
         uint64_t totalQueryFragments = 0;
 
-        auto fn = std::bind(skch::Map::insertL2ResultsToVec, std::ref(mapResults), _1);
+        auto fn = std::bind(cgi::insertL2ResultsToCGIVec, std::ref(mapResults), _1);
         if (omp_get_thread_num() == 0)
           std::cerr << "INFO [thread 0], skch::main, Start Map " << queryno + 1 << std::endl;
 
