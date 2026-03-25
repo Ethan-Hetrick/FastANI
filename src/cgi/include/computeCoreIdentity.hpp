@@ -293,8 +293,8 @@ inline void insertL2ResultsToCGIVec(std::vector<MappingResult_CGI> &v,
   compactResult.genomeId = 0; // revised later to genome id
   compactResult.querySeqId = reportedL2Result.querySeqId;
   compactResult.refStartPos = reportedL2Result.refStartPos;
-  compactResult.queryStartPos = reportedL2Result.queryStartPos;
-  compactResult.blockN = reportedL2Result.refStartPos / (reportedL2Result.queryLen - 20);
+  compactResult.queryStartPos = 0;
+  compactResult.mapRefPosBin = reportedL2Result.refStartPos / (reportedL2Result.queryLen - 20);
   compactResult.nucIdentity = reportedL2Result.nucIdentity;
   v.push_back(compactResult);
 }
