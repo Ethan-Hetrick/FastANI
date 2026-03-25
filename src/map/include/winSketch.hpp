@@ -58,6 +58,8 @@ class Sketch
 public:
   typedef std::vector<MinimizerInfo> MI_Type;
   using MIIter_t = MI_Type::const_iterator;
+  using BucketStorage_t = std::vector<MinimizerMetaData>;
+  using BucketIter_t = BucketStorage_t::const_iterator;
 
   // Keep sequence length, name that appear in the sequence (for printing the mappings later)
   std::vector<ContigInfo> metadata;
@@ -82,6 +84,7 @@ public:
    */
   using MI_Map_t = std::unordered_map<MinimizerMapKeyType, MinimizerMapValueType>;
   MI_Map_t minimizerPosLookupIndex;
+  BucketStorage_t minimizerPosLookupData;
 
 private:
   /**
@@ -239,11 +242,35 @@ private:
    */
   void index()
   {
-    // Parse all the minimizers and push into the map
+    std::unordered_map<MinimizerMapKeyType, uint32_t> bucketCounts;
+    bucketCounts.reserve(minimizerIndex.size() / 4);
+
+    // First pass: count payload sizes for each minimizer hash.
     for (auto &e : minimizerIndex)
+      bucketCounts[e.hash] += 1;
+
+    minimizerPosLookupIndex.clear();
+    minimizerPosLookupIndex.reserve(bucketCounts.size());
+
+    minimizerPosLookupData.clear();
+    minimizerPosLookupData.resize(minimizerIndex.size());
+
+    std::unordered_map<MinimizerMapKeyType, uint32_t> writeOffsets;
+    writeOffsets.reserve(bucketCounts.size());
+
+    uint32_t nextOffset = 0;
+    for (const auto &bucket : bucketCounts)
     {
-      // [hash value -> info about minimizer]
-      minimizerPosLookupIndex[e.hash].push_back(MinimizerMetaData{e.seqId, e.wpos});
+      minimizerPosLookupIndex.emplace(bucket.first, MinimizerBucketSpan{nextOffset, bucket.second});
+      writeOffsets.emplace(bucket.first, nextOffset);
+      nextOffset += bucket.second;
+    }
+
+    // Second pass: write each payload element into the flat contiguous buffer.
+    for (const auto &e : minimizerIndex)
+    {
+      uint32_t &writeOffset = writeOffsets[e.hash];
+      minimizerPosLookupData[writeOffset++] = MinimizerMetaData{e.seqId, e.wpos};
     }
 
     if (omp_get_thread_num() == 0)
@@ -364,6 +391,16 @@ public:
   int getFreqThreshold() const
   {
     return this->freqThreshold;
+  }
+
+  BucketIter_t bucketBegin(const MinimizerMapValueType &span) const
+  {
+    return this->minimizerPosLookupData.begin() + span.offset;
+  }
+
+  BucketIter_t bucketEnd(const MinimizerMapValueType &span) const
+  {
+    return this->minimizerPosLookupData.begin() + span.offset + span.count;
   }
 
   float getRatioDifference() const

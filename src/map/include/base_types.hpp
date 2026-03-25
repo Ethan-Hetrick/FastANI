@@ -69,8 +69,19 @@ struct MinimizerMetaData
   }
 };
 
+struct MinimizerBucketSpan
+{
+  uint32_t offset = 0;
+  uint32_t count = 0;
+
+  size_t size() const
+  {
+    return count;
+  }
+};
+
 typedef hash_t MinimizerMapKeyType;
-typedef std::vector<MinimizerMetaData> MinimizerMapValueType;
+typedef MinimizerBucketSpan MinimizerMapValueType;
 
 // Metadata recording for contigs in the reference DB
 struct ContigInfo
