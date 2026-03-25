@@ -31,7 +31,6 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
                                             const std::string &queryFileName)
 {
   CachedQueryData cached;
-  std::unordered_map<std::string, uint32_t> fragmentNameToIndex;
 
   gzFile fp = gzopen(queryFileName.c_str(), "r");
   gzbuffer(fp, 1 << 20);
@@ -64,29 +63,12 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
           cached.metadata.push_back(ContigInfo{seq->name.s, fragmentLen});
 
         CachedQueryFragment frag;
-        const std::string fragmentName(seq->name.s);
-        auto nameFind = fragmentNameToIndex.find(fragmentName);
-        if (nameFind == fragmentNameToIndex.end())
-        {
-          frag.nameIndex = static_cast<uint32_t>(cached.fragmentNames.size());
-          cached.fragmentNames.push_back(fragmentName);
-          fragmentNameToIndex.emplace(cached.fragmentNames.back(), frag.nameIndex);
-        }
-        else
-        {
-          frag.nameIndex = nameFind->second;
-        }
-
-        std::string fragmentSequence(seq->seq.s + i * param.minReadLength, param.minReadLength);
-        frag.sequenceLength = static_cast<offset_t>(fragmentSequence.size());
+        frag.sequenceLength = param.minReadLength;
         frag.seqCounter = seqCounter + i;
 
         kseq_t seqView = *seq;
-        const std::string &seqName = cached.fragmentNames[frag.nameIndex];
-        seqView.name.s = const_cast<char *>(seqName.c_str());
-        seqView.name.l = static_cast<int>(seqName.size());
-        seqView.seq.s = const_cast<char *>(fragmentSequence.data());
-        seqView.seq.l = static_cast<int>(fragmentSequence.size());
+        seqView.seq.s = seq->seq.s + i * param.minReadLength;
+        seqView.seq.l = param.minReadLength;
 
         CommonFunc::addMinimizers(frag.minimizerTableQuery, &seqView, param.kmerSize,
                                   param.windowSize, param.alphabetSize);
@@ -182,7 +164,8 @@ public:
       PostProcessResultsFn_t f = nullptr)
       : param(p), refSketch(refsketch), processMappingResults(f)
   {
-    this->metadata = cachedQuery.metadata;
+    if (param.visualize)
+      this->metadata = cachedQuery.metadata;
     this->mapCachedQuery(cachedQuery);
   }
 
@@ -301,13 +284,13 @@ private:
     l2Mappings.reserve(8);
     std::vector<MinimizerMetaData> seedHitsL1;
     kseq_t seqView{};
+    static char emptyName[] = "";
+    seqView.name.s = emptyName;
+    seqView.name.l = 0;
+    seqView.name.m = 0;
 
     for (const auto &frag : cachedQuery.fragments)
     {
-      const std::string &fragName = cachedQuery.fragmentNames[frag.nameIndex];
-      seqView.name.s = const_cast<char *>(fragName.c_str());
-      seqView.name.l = static_cast<int>(fragName.size());
-      seqView.name.m = static_cast<int>(fragName.size());
       seqView.seq.s = nullptr;
       seqView.seq.l = static_cast<int>(frag.sequenceLength);
       seqView.seq.m = 0;
