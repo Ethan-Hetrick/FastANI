@@ -558,16 +558,16 @@ If you want a sparse tabular output with one row per reciprocal genome pair, use
 
 ### Biological Reasons For Unexpected ANI Values
 
-- Input quality still matters. It is a good idea to quality-check both reference and query assemblies before running large analyses. As a practical rule of thumb, assemblies with N50 values below 10 Kbp may lead to weaker ANI estimates.
-- Comparisons with less than about 80% fragment-level alignment coverage are often less reliable to interpret as whole-genome ANI summaries, because too little of the genomes is contributing to the estimate. When available, review `QueryAlignmentFraction` and `ReferenceAlignmentFraction` alongside ANI.
-- Horizontal gene transfer can artificially inflate ANI values for some genome pairs, especially when recent gene exchange causes portions of otherwise more distant genomes to appear unusually similar.
+- Input quality has a large effect on results. Assemblies with N50 values below 10 Kbp may yield less reliable ANI estimates.
+- Low fragment-level alignment coverage weakens interpretation. When `QueryAlignmentFraction` and `ReferenceAlignmentFraction` fall much below whole-genome scale, ANI becomes easier to overinterpret as a genome-wide summary. As a practical guide, values below about 80% deserve caution, and values below about 20% often indicate that too little of the genomes is contributing to support a strong whole-genome interpretation. In those low-coverage cases, protein-level methods such as AAI can provide useful additional context in appropriate datasets.
+- Horizontal gene transfer can artificially inflate ANI values for some genome pairs, especially when recent gene exchange causes portions of otherwise more distant genomes to appear unusually similar. If only a small number of genes or fragments are affected, the effect on ANI may be limited; if transferred content spans a much larger fraction of the comparison, the resulting shift in ANI can be substantial.
 
 The extended metrics can be very helpful when interpreting the biological significance of an ANI value.
 
 - Watch `QueryAlignmentFraction` and `ReferenceAlignmentFraction` alongside ANI. A high ANI computed from a small aligned fraction is easier to overinterpret than a similarly high ANI supported across most of both genomes.
-- Abnormally high `FragID_F99` values can be a clue that horizontal gene transfer or other unusually conserved regions are inflating the apparent similarity between two genomes.
-- Very low `FragID_Q1` values can be a clue that part of the comparison is being pulled down by contamination or another mixed source. In that situation, contamination can artificially drive the ANI estimate lower than expected for the main organismal signal.
-- As a quick-and-dirty check, compare `FragID_Median` with ANI. If the gap is large, `FragID_Median` can sometimes be a better species-identification signal than ANI when horizontal gene transfer, contamination, or other outlier fragments are especially abundant in the comparison.
+- Abnormally high `FragID_F99` values can be a clue that horizontal gene transfer or other unusually conserved regions are inflating the apparent similarity between two genomes. As an empirical rule of thumb, genome pairs in the `95-97%` ANI range would not usually be expected to have a large fraction of fragments above `99%` identity.
+- Very low `FragID_Q1` values can be a clue that part of the comparison is being pulled down by contamination or another mixed source. In that situation, contamination can artificially drive the ANI estimate lower than expected for the main organismal signal. As an empirical rule of thumb, genome pairs near `99%` ANI would not usually be expected to have a substantial low-identity tail below about `95%`.
+- As a quick-and-dirty check, compare `FragID_Median` with ANI. If the gap is large, `FragID_Median` can sometimes be a better species-identification signal than ANI when horizontal gene transfer, contamination, or other outlier fragments are especially abundant in the comparison. Large gaps on the order of about `0.5` ANI units or more can be worth a closer look, but should be treated as a heuristic rather than a formal cutoff.
 
 ### Out-of-memory errors
 
