@@ -170,6 +170,11 @@ public:
   }
 
 private:
+  bool shouldWriteTextResults() const
+  {
+    return processMappingResults == nullptr || param.outFileName != "/dev/null";
+  }
+
   /**
    * @brief                                 parse over sequences in query file
    *                                        and map each on the reference
@@ -182,7 +187,9 @@ private:
     // Some reads are dropped because of short length
     seqno_t seqCounter = 0;
 
-    std::ofstream outstrm(param.outFileName);
+    std::ofstream outstrm;
+    if (shouldWriteTextResults())
+      outstrm.open(param.outFileName);
 
     {
       // Open the file using kseq
@@ -277,7 +284,9 @@ private:
 
   void mapCachedQuery(const CachedQueryData &cachedQuery)
   {
-    std::ofstream outstrm(param.outFileName);
+    std::ofstream outstrm;
+    if (shouldWriteTextResults())
+      outstrm.open(param.outFileName);
     std::vector<L1_candidateLocus_t> l1Mappings;
     l1Mappings.reserve(64);
     MappingResultsVector_t l2Mappings;
@@ -671,6 +680,7 @@ private:
    */
   void reportL2Mappings(MappingResultsVector_t &l2Mappings, std::ofstream &outstrm)
   {
+    const bool writeTextResults = shouldWriteTextResults();
     float bestNucIdentity = 0;
 
     // Only compute best identity when we need the "top 1%" filter
@@ -689,17 +699,20 @@ private:
       // Report top 1% mappings (unless reportAll flag is true, in which case we report all)
       if (param.reportAll == true || e.nucIdentity >= bestNucIdentity - 1.0)
       {
-        outstrm << e.querySeqId << " " << e.queryLen << " " << e.queryStartPos << " "
-                << e.queryEndPos << " " << "+/-"
-                << " " << this->refSketch.metadata[e.refSeqId].name << " "
-                << this->refSketch.metadata[e.refSeqId].len << " " << e.refStartPos << " "
-                << e.refEndPos << " " << e.nucIdentity;
+        if (writeTextResults)
+        {
+          outstrm << e.querySeqId << " " << e.queryLen << " " << e.queryStartPos << " "
+                  << e.queryEndPos << " " << "+/-"
+                  << " " << this->refSketch.metadata[e.refSeqId].name << " "
+                  << this->refSketch.metadata[e.refSeqId].len << " " << e.refStartPos << " "
+                  << e.refEndPos << " " << e.nucIdentity;
 
-        // Print some additional statistics
-        outstrm << " " << e.conservedSketches << " " << e.sketchSize << " "
-                << e.nucIdentityUpperBound;
+          // Print some additional statistics
+          outstrm << " " << e.conservedSketches << " " << e.sketchSize << " "
+                  << e.nucIdentityUpperBound;
 
-        outstrm << "\n";
+          outstrm << "\n";
+        }
 
         // User defined processing of the results
         if (processMappingResults != nullptr)
