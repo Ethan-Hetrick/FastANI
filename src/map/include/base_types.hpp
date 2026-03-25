@@ -91,10 +91,7 @@ template <typename KSEQ, typename MinimizerVec> struct QueryMetaData
 struct CachedQueryFragment
 {
   std::string name;
-  std::string sequence;
-  std::vector<uint64_t> packedSequence;
   offset_t sequenceLength = 0;
-  bool packedDna = false;
   seqno_t seqCounter;
   int sketchSize;
   std::vector<MinimizerInfo> minimizerTableQuery;
@@ -106,7 +103,7 @@ struct CachedQueryFragment
 
   size_t storedSequenceBytes() const
   {
-    return packedDna ? packedSequence.size() * sizeof(uint64_t) : sequence.size();
+    return 0;
   }
 };
 

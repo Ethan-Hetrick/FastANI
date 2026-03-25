@@ -91,54 +91,6 @@ inline hash_t getHash(const char *seq, int length)
   return hash;
 }
 
-inline size_t packedDnaWordCount(offset_t length)
-{
-  const size_t totalBits = static_cast<size_t>(length) * 3;
-  return (totalBits + 63) / 64;
-}
-
-inline uint8_t encodePackedDnaBase(char c)
-{
-  switch (c)
-  {
-  case 'A':
-  case 'a':
-    return 0;
-  case 'C':
-  case 'c':
-    return 1;
-  case 'G':
-  case 'g':
-    return 2;
-  case 'T':
-  case 't':
-    return 3;
-  case 'N':
-  case 'n':
-    return 4;
-  default:
-    return 5;
-  }
-}
-
-inline void packDnaSequence(const char *seq, offset_t length, std::vector<uint64_t> &packed)
-{
-  packed.assign(packedDnaWordCount(length), 0);
-
-  for (offset_t i = 0; i < length; i++)
-  {
-    const uint64_t code = static_cast<uint64_t>(encodePackedDnaBase(seq[i]));
-    const size_t bitIndex = static_cast<size_t>(i) * 3;
-    const size_t wordIndex = bitIndex / 64;
-    const size_t bitOffset = bitIndex % 64;
-
-    packed[wordIndex] |= (code << bitOffset);
-
-    if (bitOffset > 61)
-      packed[wordIndex + 1] |= (code >> (64 - bitOffset));
-  }
-}
-
 /**
  * @brief       compute winnowed minimizers from a given sequence and add to the index
  * @param[out]  minimizerIndex  minimizer table storing minimizers and their position as we compute
