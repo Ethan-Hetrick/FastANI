@@ -42,6 +42,7 @@ struct Parameters
   bool loadSketchMode;
   bool reportAll;                  // Report all alignments if this is true
   bool visualize;                  // Visualize the conserved regions of two genomes
+  bool fragHist = false;           // Write per-pair fragment identity lists to sidecar files
   bool matrixOutput;               // report fastani results as lower triangular matrix
   bool averageReciprocals = false; // average reciprocal ANI-like summaries in sparse tabular output
   bool extendedMetrics = false;    // report extra fragment-level ANI metrics
