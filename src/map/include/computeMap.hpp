@@ -143,6 +143,7 @@ public:
   // Keep sequence length, name that appear in the contigs to compute global offsets
   // Optionally used if visualization is enabled
   std::vector<ContigInfo> metadata;
+  std::vector<offset_t> queryOffsetAdder;
 
   /**
    * @brief                             constructor
@@ -158,6 +159,8 @@ public:
       : param(p), refSketch(refsketch), processMappingResults(f)
   {
     this->mapQuery(totalQueryFragments, param.querySequences[queryno]);
+    if (param.visualize)
+      this->computeQueryOffsets();
   }
 
   Map(const skch::Parameters &p, const skch::Sketch &refsketch, const CachedQueryData &cachedQuery,
@@ -167,9 +170,22 @@ public:
     if (param.visualize)
       this->metadata = cachedQuery.metadata;
     this->mapCachedQuery(cachedQuery);
+    if (param.visualize)
+      this->computeQueryOffsets();
   }
 
 private:
+  void computeQueryOffsets()
+  {
+    queryOffsetAdder.resize(metadata.size());
+    offset_t runningOffset = 0;
+    for (size_t i = 0; i < metadata.size(); i++)
+    {
+      queryOffsetAdder[i] = runningOffset;
+      runningOffset += metadata[i].len;
+    }
+  }
+
   bool shouldWriteTextResults() const
   {
     return processMappingResults == nullptr || param.outFileName != "/dev/null";

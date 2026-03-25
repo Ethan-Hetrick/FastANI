@@ -84,17 +84,6 @@ void outputVisualizationFile(skch::Parameters &parameters,
     visFileName += std::to_string(omp_get_thread_num());
   std::ofstream outstrm(visFileName, std::ios::app);
 
-  // Shift offsets for converting from local (to contig) to global (to genome)
-  std::vector<skch::offset_t> queryOffsetAdder(mapper.metadata.size());
-
-  for (int i = 0; i < mapper.metadata.size(); i++)
-  {
-    if (i == 0)
-      queryOffsetAdder[i] = 0;
-    else
-      queryOffsetAdder[i] = queryOffsetAdder[i - 1] + mapper.metadata[i - 1].len;
-  }
-
   // Report all mappings that contribute to core-genome identity estimate
   // Format the output to blast tabular way (outfmt 6)
   for (auto &e : mappings_2way)
@@ -106,8 +95,9 @@ void outputVisualizationFile(skch::Parameters &parameters,
             << "NA"
             << "\t"
             << "NA"
-            << "\t" << e.queryStartPos + queryOffsetAdder[e.querySeqId] << "\t"
-            << e.queryStartPos + parameters.minReadLength - 1 + queryOffsetAdder[e.querySeqId]
+            << "\t" << e.queryStartPos + mapper.queryOffsetAdder[e.querySeqId] << "\t"
+            << e.queryStartPos + parameters.minReadLength - 1 +
+                 mapper.queryOffsetAdder[e.querySeqId]
             << "\t" << e.refStartPos + refSketch.refOffsetAdder[e.refSequenceId] << "\t"
             << e.refStartPos + parameters.minReadLength - 1 +
                  refSketch.refOffsetAdder[e.refSequenceId]
