@@ -90,7 +90,7 @@ template <typename KSEQ, typename MinimizerVec> struct QueryMetaData
 
 struct CachedQueryFragment
 {
-  std::string name;
+  uint32_t nameIndex = 0;
   offset_t sequenceLength = 0;
   seqno_t seqCounter;
   int sketchSize;
@@ -110,6 +110,7 @@ struct CachedQueryFragment
 struct CachedQueryData
 {
   std::vector<ContigInfo> metadata;
+  std::vector<std::string> fragmentNames;
   std::vector<CachedQueryFragment> fragments;
   uint64_t totalQueryFragments = 0;
 

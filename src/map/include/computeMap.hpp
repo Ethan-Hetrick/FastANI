@@ -31,6 +31,7 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
                                             const std::string &queryFileName)
 {
   CachedQueryData cached;
+  std::unordered_map<std::string, uint32_t> fragmentNameToIndex;
 
   gzFile fp = gzopen(queryFileName.c_str(), "r");
   gzbuffer(fp, 1 << 20);
@@ -63,14 +64,27 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
           cached.metadata.push_back(ContigInfo{seq->name.s, fragmentLen});
 
         CachedQueryFragment frag;
-        frag.name = seq->name.s;
+        const std::string fragmentName(seq->name.s);
+        auto nameFind = fragmentNameToIndex.find(fragmentName);
+        if (nameFind == fragmentNameToIndex.end())
+        {
+          frag.nameIndex = static_cast<uint32_t>(cached.fragmentNames.size());
+          cached.fragmentNames.push_back(fragmentName);
+          fragmentNameToIndex.emplace(cached.fragmentNames.back(), frag.nameIndex);
+        }
+        else
+        {
+          frag.nameIndex = nameFind->second;
+        }
+
         std::string fragmentSequence(seq->seq.s + i * param.minReadLength, param.minReadLength);
         frag.sequenceLength = static_cast<offset_t>(fragmentSequence.size());
         frag.seqCounter = seqCounter + i;
 
         kseq_t seqView = *seq;
-        seqView.name.s = const_cast<char *>(frag.name.c_str());
-        seqView.name.l = static_cast<int>(frag.name.size());
+        const std::string &seqName = cached.fragmentNames[frag.nameIndex];
+        seqView.name.s = const_cast<char *>(seqName.c_str());
+        seqView.name.l = static_cast<int>(seqName.size());
         seqView.seq.s = const_cast<char *>(fragmentSequence.data());
         seqView.seq.l = static_cast<int>(fragmentSequence.size());
 
@@ -288,10 +302,11 @@ private:
 
     for (const auto &frag : cachedQuery.fragments)
     {
+      const std::string &fragName = cachedQuery.fragmentNames[frag.nameIndex];
       kseq_t seqView{};
-      seqView.name.s = const_cast<char *>(frag.name.c_str());
-      seqView.name.l = static_cast<int>(frag.name.size());
-      seqView.name.m = static_cast<int>(frag.name.size());
+      seqView.name.s = const_cast<char *>(fragName.c_str());
+      seqView.name.l = static_cast<int>(fragName.size());
+      seqView.name.m = static_cast<int>(fragName.size());
       seqView.seq.s = nullptr;
       seqView.seq.l = static_cast<int>(frag.sequenceLength);
       seqView.seq.m = 0;
