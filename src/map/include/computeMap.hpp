@@ -65,6 +65,7 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
         CachedQueryFragment frag;
         frag.name = seq->name.s;
         frag.sequence.assign(seq->seq.s + i * param.minReadLength, param.minReadLength);
+        frag.sequenceLength = static_cast<offset_t>(frag.sequence.size());
         frag.seqCounter = seqCounter + i;
 
         kseq_t seqView = *seq;
@@ -84,6 +85,14 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
                       MinimizerInfo::equalityByHash);
         frag.minimizerTableQuery.erase(uniqEndIter, frag.minimizerTableQuery.end());
         frag.sketchSize = static_cast<int>(frag.minimizerTableQuery.size());
+
+        if (param.alphabetSize == 4)
+        {
+          CommonFunc::packDnaSequence(frag.sequence.data(), frag.sequenceLength,
+                                      frag.packedSequence);
+          frag.packedDna = true;
+          std::string().swap(frag.sequence);
+        }
 
         cached.fragments.push_back(std::move(frag));
       }
@@ -293,9 +302,9 @@ private:
       seqView.name.s = const_cast<char *>(frag.name.c_str());
       seqView.name.l = static_cast<int>(frag.name.size());
       seqView.name.m = static_cast<int>(frag.name.size());
-      seqView.seq.s = const_cast<char *>(frag.sequence.data());
-      seqView.seq.l = static_cast<int>(frag.sequence.size());
-      seqView.seq.m = static_cast<int>(frag.sequence.size());
+      seqView.seq.s = frag.packedDna ? nullptr : const_cast<char *>(frag.sequence.data());
+      seqView.seq.l = static_cast<int>(frag.sequenceLength);
+      seqView.seq.m = frag.packedDna ? 0 : static_cast<int>(frag.sequence.size());
 
       struct PreparedQueryMetaData
       {
