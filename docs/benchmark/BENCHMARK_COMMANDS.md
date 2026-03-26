@@ -45,8 +45,16 @@ Rscript docs/benchmark/plot_publication_performance.R \
   benchmark/publication_runs.csv \
   benchmark/plots \
   benchmark/publication_validation.txt \
-  benchmark/all_v_all_summary.csv
+  benchmark/all_v_all_summary.csv \
+  benchmark/cache_profile_latest/metrics.tsv
 ```
+
+This writes:
+
+- `benchmark/plots/publication_performance_dashboard.png`
+- `benchmark/plots/publication_summary_by_variant.tsv`
+- `benchmark/plots/publication_key_comparisons.tsv`
+- `benchmark/plots/publication_cache_metrics.tsv`
 
 ## Full All-v-all Benchmark
 
@@ -95,9 +103,29 @@ Rscript benchmark/plot_all_v_all_comparison.R \
   benchmark/plots/all_v_all_comparison.png
 ```
 
+## Cache Profiling Snapshot
+
+Capture a quick `perf stat` snapshot for the half-list workload:
+
+```sh
+/scicomp/home-pure/rqu4/bin/perf stat -x, \
+  -e cycles,instructions,cache-references,cache-misses,branches,branch-misses,LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses,l2_rqsts.all_demand_references,l2_rqsts.all_demand_miss,l2_rqsts.demand_data_rd_hit,l2_rqsts.demand_data_rd_miss \
+  build/fastANI \
+  -q tests/data/Shigella_flexneri_2a_01.fna \
+  --rl benchmark/genome-list_half_random.txt \
+  -t 1 \
+  -o benchmark/cache_profile_latest/new_half_nosketch.out \
+  > benchmark/cache_profile_latest/new_half_nosketch.perf.csv \
+  2>&1
+```
+
+Summarize the cache/perf metrics into a machine-readable table such as:
+
+- `benchmark/cache_profile_latest/metrics.tsv`
+
 ## Sketch Query Validation
 
-Validate that batched sketch execution matches the all-shards sketch output:
+Validate that batched sketch execution matches the full-sketch output:
 
 ```sh
 ./build/fastANI -q tests/data/Shigella_flexneri_2a_01.fna \
@@ -124,7 +152,9 @@ diff -q benchmark/std.out benchmark/b1.out
 - `benchmark/publication_validation.txt`
 - `benchmark/plots/publication_summary_by_variant.tsv`
 - `benchmark/plots/publication_key_comparisons.tsv`
+- `benchmark/plots/publication_cache_metrics.tsv`
 - `benchmark/plots/publication_performance_dashboard.png`
 - `benchmark/all_v_all_summary.csv`
 - `benchmark/all_v_all_report.txt`
 - `benchmark/plots/all_v_all_comparison.png`
+- `benchmark/cache_profile_latest/metrics.tsv`

@@ -50,7 +50,7 @@ struct Parameters
   bool extendedMetrics = false;    // report extra fragment-level ANI metrics
   bool header = false;             // write a header row in tabular output
   int batchSize =
-    0; // load sketch bins in batches during sketch-backed querying; 0 means load all shards at once
+    0; // load sketch bins in batches during sketch-backed querying; 0 means load the full sketch at once
   int sketchShardCount = 0; // number of prebuilt sketch shards discovered for --sketch inputs
   float maxRatioDiff;       // max Ratio for sanity check
   bool sanityCheck;         // Sanity check for extreme Cases

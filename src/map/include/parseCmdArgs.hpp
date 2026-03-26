@@ -215,7 +215,7 @@ void printCmdOptions(skch::Parameters &parameters)
   if (parameters.batchSize > 0)
     std::cerr << "Sketch batch size = " << parameters.batchSize << std::endl;
   else
-    std::cerr << "Sketch batch size = all shards" << std::endl;
+    std::cerr << "Sketch batch size = full sketch" << std::endl;
   if (parameters.outFileName.empty())
     std::cerr << "ANI output file = stdout" << std::endl;
   else
@@ -338,9 +338,9 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
                     "thread count for parallel execution [default : 1]";
   auto batch_size_cmd =
     (clipp::option("--batch-size") & clipp::value("value", parameters.batchSize)) %
-    "load sketch shards in batches during sketch-backed querying; requires --sketch. Use 1 for the "
+    "load sketch chunks in batches during sketch-backed querying; requires --sketch. Use 1 for the "
     "lowest memory footprint, intermediate values for a memory/runtime tradeoff, and omit it to "
-    "load all shards at once";
+    "load the full sketch at once";
   auto sanitycheck_cmd =
     clipp::option("-s", "--sanityCheck").set(parameters.sanityCheck).doc("run sanity check");
   auto help_cmd = clipp::option("-h", "--help").set(help).doc("print this help page");
@@ -368,7 +368,7 @@ void parseandSave(int argc, char **argv, skch::Parameters &parameters)
     "output.txt\n\nGenerate a reference sketch from a reference list:\n$ fastANI --refList "
     "references.txt --write-ref-sketch reference_sketch\n\n1 vs all comparison using a sketch with "
     "visualization output:\n$ fastANI -q query.fa --sketch reference_sketch --visualize -o "
-    "output.txt\n\n1 vs all comparison using a sketch with one shard loaded at a time:\n$ fastANI "
+    "output.txt\n\n1 vs all comparison using a sketch with one chunk loaded at a time:\n$ fastANI "
     "-q query.fa --sketch reference_sketch --batch-size 1 -o output.txt\n\nAll vs all comparison "
     "with query list, reference list, averaged reciprocals, and visualization mappings:\n$ fastANI "
     "--queryList queries.txt --refList references.txt --average-reciprocals --visualize -o "

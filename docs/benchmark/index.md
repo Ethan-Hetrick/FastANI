@@ -11,6 +11,11 @@ Start with:
 Key generated assets live under:
 
 - `benchmark/publication_runs.csv`
-- `benchmark/all_v_all_summary.csv`
+- `benchmark/cache_profile_latest/metrics.tsv`
 - `benchmark/plots/publication_performance_dashboard.png`
-- `benchmark/plots/all_v_all_comparison.png`
+- `benchmark/plots/publication_cache_metrics.tsv`
+
+The current dashboard is centered on the repeated half-list benchmark plus
+single-run `perf stat` cache snapshots. The full all-v-all benchmark remains a
+separate long-running artifact and is not required to regenerate the main
+dashboard.

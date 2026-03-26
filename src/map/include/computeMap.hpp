@@ -447,8 +447,7 @@ private:
         // Save the positions (Ignore high frequency hits)
         if (hitPositionList.size() < refSketch.getFreqThreshold())
         {
-          seedHitsL1.insert(seedHitsL1.end(), refSketch.bucketBegin(hitPositionList),
-                            refSketch.bucketEnd(hitPositionList));
+          seedHitsL1.insert(seedHitsL1.end(), hitPositionList.begin(), hitPositionList.end());
         }
       }
     }
@@ -480,8 +479,7 @@ private:
       {
         const auto &hitPositionList = seedFind->second;
         if (hitPositionList.size() < refSketch.getFreqThreshold())
-          seedHitsL1.insert(seedHitsL1.end(), refSketch.bucketBegin(hitPositionList),
-                            refSketch.bucketEnd(hitPositionList));
+          seedHitsL1.insert(seedHitsL1.end(), hitPositionList.begin(), hitPositionList.end());
       }
     }
 

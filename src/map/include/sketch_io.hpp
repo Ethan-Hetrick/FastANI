@@ -83,8 +83,7 @@ inline void saveReferenceSketch(const Sketch &sketch, const Parameters &paramete
 
     if (nVals > 0)
     {
-      auto begin = sketch.bucketBegin(vals);
-      out.write(reinterpret_cast<const char *>(&(*begin)), nVals * sizeof(MinimizerMetaData));
+      out.write(reinterpret_cast<const char *>(vals.data()), nVals * sizeof(vals[0]));
     }
   }
 
@@ -178,7 +177,6 @@ inline Sketch loadReferenceSketch(const Parameters &parameters, const std::strin
 
   sketch.minimizerPosLookupIndex.clear();
   sketch.minimizerPosLookupIndex.reserve(nKeys);
-  sketch.minimizerPosLookupData.clear();
 
   for (size_t i = 0; i < nKeys; i++)
   {
@@ -188,16 +186,14 @@ inline Sketch loadReferenceSketch(const Parameters &parameters, const std::strin
     in.read(reinterpret_cast<char *>(&key), sizeof(key));
     in.read(reinterpret_cast<char *>(&nVals), sizeof(nVals));
 
-    const uint32_t offset = static_cast<uint32_t>(sketch.minimizerPosLookupData.size());
-    sketch.minimizerPosLookupData.resize(offset + nVals);
+    MinimizerMapValueType vals;
+    vals.resize(nVals);
     if (nVals > 0)
     {
-      in.read(reinterpret_cast<char *>(sketch.minimizerPosLookupData.data() + offset),
-              nVals * sizeof(MinimizerMetaData));
+      in.read(reinterpret_cast<char *>(vals.data()), nVals * sizeof(vals[0]));
     }
 
-    sketch.minimizerPosLookupIndex.emplace(
-      key, MinimizerMapValueType{offset, static_cast<uint32_t>(nVals)});
+    sketch.minimizerPosLookupIndex.emplace(key, std::move(vals));
   }
 
   if (!in)
