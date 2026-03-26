@@ -105,6 +105,9 @@ The intent is to help a technical reviewer understand what changed, why it chang
     Decision: do not keep or reintroduce this flattened minimizer-bucket storage without materially different evidence on both sketch-backed and no-sketch workloads.
     Related commit: `b037e92`
 
+- Evaluated a host-tuned `-march=native` build and did not see a benefit on the checked Kalamari sketch-query workload.
+  Why: a CPU-tuned build is an easy experiment to try before more invasive work such as PGO, but on an ad-hoc `100`-query versus `10K`-genome Kalamari pre-made sketch test at `t=4`, the native build was modestly slower in two quick runs and did not reduce memory. This result may vary by hardware and compiler, so it should be treated as a local benchmark note rather than a universal conclusion.
+
 ## Query Mapping Performance
 
 - Removed unnecessary seed-hit copying during L1 mapping.

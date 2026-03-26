@@ -471,6 +471,14 @@ For multi-genome runs, the `.visual` file may contain mappings for many genome p
 
 FastANI supports multi-threading via `-t, --threads`.
 
+> **Warning**
+> More threads are not always better. In an ad-hoc test of `100` queries
+> against the `10K`-genome Kalamari DB using a pre-made sketch, `t=4`
+> performed best; higher thread counts used substantially more RAM, made less
+> efficient use of CPUs, and in some cases were slower than lower thread
+> counts. Profile your own workload on your own hardware before treating a
+> higher thread count as the default best choice.
+
 For high-throughput workloads, users can split query lists across many scheduler tasks and run them against the same reference sketch in parallel. Using sketch-backed queries with `--batch-size 1` keeps per-task memory requirements low, which makes this approach easier to scale across many nodes.
 
 > This pattern also fits naturally into workflow managers such as Nextflow or Snakemake.
