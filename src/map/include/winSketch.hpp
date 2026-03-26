@@ -82,7 +82,7 @@ public:
    * [minimizer #1] -> [pos1, pos2, pos3 ...]
    * [minimizer #2] -> [pos1, pos2...]
    * ...
-  */
+   */
   using MI_Map_t = std::unordered_map<MinimizerMapKeyType, MinimizerMapValueType>;
   MI_Map_t minimizerPosLookupIndex;
 
