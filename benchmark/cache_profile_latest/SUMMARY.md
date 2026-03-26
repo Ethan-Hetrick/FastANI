@@ -8,7 +8,7 @@ Workload:
 - query: `tests/data/Shigella_flexneri_2a_01.fna`
 - references: `benchmark/genome-list_half_random.txt`
 - threads: `1`
-- profiler: `/scicomp/home-pure/rqu4/bin/perf stat`
+- profiler: `perf stat`
 
 Key takeaways from the current snapshot:
 

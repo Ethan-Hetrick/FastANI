@@ -6,7 +6,9 @@ cp INSTALL.txt docs/INSTALL.txt
 cp LICENSE docs/LICENSE
 
 mkdir -p docs/images
-cp -r images/. docs/images/
+if [ -d images ]; then
+  cp -r images/. docs/images/
+fi
 
 mkdir -p docs/tests
 cp -r tests/data docs/tests/data

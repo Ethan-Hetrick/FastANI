@@ -108,7 +108,7 @@ Rscript benchmark/plot_all_v_all_comparison.R \
 Capture a quick `perf stat` snapshot for the half-list workload:
 
 ```sh
-/scicomp/home-pure/rqu4/bin/perf stat -x, \
+perf stat -x, \
   -e cycles,instructions,cache-references,cache-misses,branches,branch-misses,LLC-loads,LLC-load-misses,LLC-stores,LLC-store-misses,l2_rqsts.all_demand_references,l2_rqsts.all_demand_miss,l2_rqsts.demand_data_rd_hit,l2_rqsts.demand_data_rd_miss \
   build/fastANI \
   -q tests/data/Shigella_flexneri_2a_01.fna \
