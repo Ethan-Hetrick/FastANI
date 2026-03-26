@@ -235,11 +235,14 @@ panel_box <- function() {
 }
 
 draw_card <- function(title, value, subtitle, accent) {
+  par(mar = c(0.35, 0.35, 0.35, 0.35) + 0.1)
   panel_box()
   rect(0, 0.915, 1, 1, col = adjustcolor(accent, alpha.f = 0.14), border = NA)
-  text(0.05, 0.82, title, adj = c(0, 1), cex = 0.98, font = 2, col = text_primary)
-  text(0.05, 0.53, value, adj = c(0, 0.5), cex = 1.80, font = 2, col = accent)
-  text(0.05, 0.18, subtitle, adj = c(0, 0), cex = 0.86, col = text_muted)
+  title_line <- gsub("\n+", "; ", title)
+  subtitle_line <- gsub("\n+", "; ", subtitle)
+  text(0.05, 0.83, title_line, adj = c(0, 1), cex = 0.98, font = 2, col = text_primary)
+  text(0.05, 0.47, value, adj = c(0, 0.5), cex = 1.72, font = 2, col = accent)
+  text(0.05, 0.18, subtitle_line, adj = c(0, 1), cex = 0.86, col = text_muted)
 }
 
 overlay_replicate_points <- function(x, values, color) {
@@ -255,7 +258,8 @@ draw_stacked_runtime <- function(variants, title, subtitle) {
   sub <- summary_df[summary_df$variant %in% variants, ]
   sub <- sub[match(variants, as.character(sub$variant)), ]
   runtime_mat <- rbind(sub$db_mean, sub$query_mean, sub$post_mean, sub$other_mean)
-  rownames(runtime_mat) <- c("DB/load", "Query map", "Post map", "Other overhead")
+  phase_labels <- c("DB/load", "Query", "Post", "Overhead")
+  rownames(runtime_mat) <- phase_labels
   colnames(runtime_mat) <- unname(variant_plot_labels[variants])
   totals <- colSums(runtime_mat)
   ymax <- max(totals) * 1.28
@@ -270,7 +274,7 @@ draw_stacked_runtime <- function(variants, title, subtitle) {
     ylab = "Seconds",
     main = title,
     las = 1,
-    cex.names = 0.90
+    cex.names = 1.00
   )
   abline(h = pretty(c(0, ymax)), col = grid_col, lwd = 1)
   mids <- barplot(
@@ -288,14 +292,24 @@ draw_stacked_runtime <- function(variants, title, subtitle) {
     overlay_replicate_points(mids[i], vals, variant_colors[[variants[i]]])
   }
 
-  text(mids, totals, labels = fmt_num(totals, 2), pos = 3, cex = 0.88, col = text_primary)
-  legend("topright", legend = rownames(runtime_mat), fill = phase_colors, bty = "n", cex = 0.82)
-  mtext(subtitle, side = 3, line = 0.4, cex = 0.86, col = text_muted)
+  text(mids, totals, labels = fmt_num(totals, 2), pos = 3, cex = 0.98, col = text_primary)
+  legend(
+    "topright",
+    legend = phase_labels,
+    fill = phase_colors,
+    bty = "n",
+    cex = 0.88,
+    ncol = 2,
+    x.intersp = 0.65,
+    y.intersp = 1.0,
+    inset = c(0.02, 0.01)
+  )
+  mtext(subtitle, side = 3, line = 0.4, cex = 0.98, col = text_muted)
   mtext(
     sprintf("Half-list workload: 1 query, 5,032 references, %d reported comparisons", std_s$output_rows),
     side = 1,
     line = 4.8,
-    cex = 0.78,
+    cex = 0.88,
     col = text_muted
   )
 }
@@ -318,7 +332,7 @@ draw_memory_panel <- function() {
     xlab = "Peak RSS (GiB)",
     main = "Peak Memory",
     las = 1,
-    cex.names = 0.80,
+    cex.names = 0.90,
     horiz = TRUE
   )
   abline(v = pretty(c(0, xmax)), col = grid_col, lwd = 1)
@@ -340,8 +354,8 @@ draw_memory_panel <- function() {
            bg = adjustcolor(cols[i], alpha.f = 0.75), col = "#32404B", lwd = 0.8)
   }
 
-  text(vals, mids, labels = fmt_num(vals, 2), pos = 4, cex = 0.82, col = text_primary)
-  mtext("Bars show means; points show replicate RSS values", side = 3, line = 0.4, cex = 0.82, col = text_muted)
+  text(vals, mids, labels = fmt_num(vals, 2), pos = 4, cex = 0.92, col = text_primary)
+  mtext("Bars show means; points show replicate RSS values", side = 3, line = 0.4, cex = 0.92, col = text_muted)
 }
 
 draw_relative_change_panel <- function() {
@@ -397,12 +411,12 @@ draw_relative_change_panel <- function() {
   )
   abline(v = pretty(c(0, xmax)), col = grid_col, lwd = 1)
   abline(v = 1, col = "#3F4F5D", lwd = 1.5, lty = 2)
-  axis(2, at = y, labels = labels, las = 1, cex.axis = 0.80)
+  axis(2, at = y, labels = labels, las = 1, cex.axis = 0.90)
 
   segments(0, y, values, y, col = "#C8D3DE", lwd = 3)
   points(values, y, pch = 21, bg = cols, col = "#24313C", cex = 1.55, lwd = 0.9)
-  text(values + xmax * 0.025, y, labels = sprintf("%.2fx", values), adj = c(0, 0.5), cex = 0.80, col = text_primary)
-  mtext("Reference line at 1.0; values left of the line indicate reductions", side = 3, line = 0.4, cex = 0.82, col = text_muted)
+  text(values + xmax * 0.025, y, labels = sprintf("%.2fx", values), adj = c(0, 0.5), cex = 0.90, col = text_primary)
+  mtext("Reference line at 1.0; values left of the line indicate reductions", side = 3, line = 0.4, cex = 0.92, col = text_muted)
 }
 
 draw_cache_panel <- function() {
@@ -437,30 +451,30 @@ draw_cache_panel <- function() {
   cols_x <- c(0.36, 0.56, 0.75, 0.92)
   row_y <- c(0.72, 0.53, 0.34, 0.15)
 
-  text(0.05, 0.86, "Metric", adj = c(0, 0.5), cex = 0.90, font = 2, col = text_primary)
+  text(0.05, 0.86, "Metric", adj = c(0, 0.5), cex = 1.00, font = 2, col = text_primary)
   for (j in seq_len(nrow(sub))) {
     x <- cols_x[j]
     rect(x - 0.075, 0.79, x + 0.075, 0.89,
          col = adjustcolor(cache_colors[[sub$workload[j]]], alpha.f = 0.16),
          border = panel_border, lwd = 1)
-    text(x, 0.84, cache_labels[[sub$workload[j]]], cex = 0.78, font = 2, col = text_primary)
+    text(x, 0.84, cache_labels[[sub$workload[j]]], cex = 0.86, font = 2, col = text_primary)
   }
 
   for (i in seq_along(metrics)) {
     metric <- metrics[[i]]
     y <- row_y[i]
     rect(0.03, y - 0.075, 0.97, y + 0.075, col = if (i %% 2) "#FBFCFE" else "#F6F9FC", border = NA)
-    text(0.05, y + 0.02, metric$label, adj = c(0, 0.5), cex = 0.90, font = 2, col = text_primary)
-    text(0.05, y - 0.03, metric$better, adj = c(0, 0.5), cex = 0.74, col = text_muted)
+    text(0.05, y + 0.02, metric$label, adj = c(0, 0.5), cex = 1.00, font = 2, col = text_primary)
+    text(0.05, y - 0.03, metric$better, adj = c(0, 0.5), cex = 0.82, col = text_muted)
     for (j in seq_len(nrow(sub))) {
       x <- cols_x[j]
       val <- sub[[metric$column]][j]
       lab <- if (is.na(val)) "NA" else metric$formatter(val)
-      text(x, y, lab, cex = 0.92, col = text_primary)
+      text(x, y, lab, cex = 1.02, col = text_primary)
     }
   }
 
-  mtext("Single-run perf stat snapshots on the t=1 half-list workload", side = 1, line = 2.9, cex = 0.82, col = text_muted)
+  mtext("Single-run perf stat snapshots on the t=1 half-list workload", side = 1, line = 2.9, cex = 0.90, col = text_muted)
 }
 
 draw_cpu_panel <- function() {
@@ -468,7 +482,7 @@ draw_cpu_panel <- function() {
   sub <- summary_df[match(variants, as.character(summary_df$variant)), ]
   vals <- sub$total_cpu_mean
   cols <- unname(variant_colors[variants])
-  xmax <- max(vals) * 1.22
+  xmax <- max(vals) * 1.42
   labels <- c("Old no-sketch", "Current no-sketch", "Full sketch", "Batch=5", "Batch=1")
 
   par(mar = c(4.8, 10, 4, 2) + 0.1)
@@ -481,7 +495,7 @@ draw_cpu_panel <- function() {
     xlab = "Total CPU time (user + sys seconds)",
     main = "CPU Consumption",
     las = 1,
-    cex.names = 0.80,
+    cex.names = 0.90,
     horiz = TRUE
   )
   abline(v = pretty(c(0, xmax)), col = grid_col, lwd = 1)
@@ -496,34 +510,38 @@ draw_cpu_panel <- function() {
     horiz = TRUE
   )
 
-  text(vals, mids, labels = sprintf("%s s", fmt_num(vals, 1)), pos = 4, cex = 0.80, col = text_primary)
+  text(vals + xmax * 0.02, mids, labels = sprintf("%s s", fmt_num(vals, 1)), adj = c(0, 0.5), cex = 0.92, col = text_primary)
   cpu_labels <- ifelse(
     sub$threads_mean > 1,
-    sprintf("%s cores avg (%s%% of %s threads)",
+    sprintf("%s cores avg (%s%% eff.)",
             fmt_num(sub$effective_cores_mean, 1),
-            fmt_num(sub$thread_util_mean, 0),
-            fmt_num(sub$threads_mean, 0)),
+            fmt_num(sub$thread_util_mean, 0)),
     sprintf("%s%% of 1 core", fmt_num(sub$thread_util_mean, 0))
   )
-  text(rep(xmax * 0.98, length(mids)), mids, labels = cpu_labels, adj = c(1, 0.5), cex = 0.72, col = text_muted)
-  mtext("Totals are means across replicates; right labels show effective cores and normalized thread utilization", side = 3, line = 0.4, cex = 0.82, col = text_muted)
+  text(rep(xmax * 0.99, length(mids)), mids, labels = cpu_labels, adj = c(1, 0.5), cex = 0.88, col = text_muted)
+  mtext("Means across replicates; right labels show effective cores and thread efficiency", side = 3, line = 0.4, cex = 0.92, col = text_muted)
 }
 
 draw_notes_panel <- function() {
+  par(mar = c(0.5, 0.5, 0.5, 0.5) + 0.1)
   panel_box()
-  text(0.05, 0.93, "Method Notes", adj = c(0, 1), cex = 1.08, font = 2, col = text_primary)
+  text(0.05, 0.93, "Method Notes", adj = c(0, 1), cex = 1.12, font = 2, col = text_primary)
 
   lines_to_show <- c(
-    sprintf("%d half-list runs total: 5 execution modes x %d replicates", nrow(df), unique(summary_df$n)[1]),
-    "Release builds; sketch query modes use an 8-chunk prebuilt reference sketch",
-    "Cache panel reports single perf stat snapshots on the t=1 half-list workload",
-    "Replicate markers show run-to-run spread instead of hiding variance behind means only",
-    "This dashboard is intentionally centered on the repeated half-list benchmark rather than the long all-v-all run"
+    sprintf("%d half-list runs total: 5 modes x %d replicates", nrow(df), unique(summary_df$n)[1]),
+    "Release builds; sketch modes use an 8-chunk prebuilt reference sketch",
+    "Cache panel uses single perf-stat snapshots; replicate markers show run-to-run spread"
   )
 
-  for (i in seq_along(lines_to_show)) {
-    text(0.08, 0.80 - (i - 1) * 0.11, paste0("\u2022 ", lines_to_show[i]),
-         adj = c(0, 0.5), cex = 0.80, col = text_primary)
+  y <- 0.80
+  for (line in lines_to_show) {
+    wrapped <- strwrap(line, width = 46)
+    for (j in seq_along(wrapped)) {
+      prefix <- if (j == 1) "\u2022 " else "  "
+      text(0.08, y, paste0(prefix, wrapped[[j]]), adj = c(0, 0.5), cex = 0.92, col = text_primary)
+      y <- y - 0.09
+    }
+    y <- y - 0.04
   }
 
   segments(0.07, 0.24, 0.93, 0.24, col = panel_border, lwd = 1)
@@ -535,7 +553,7 @@ draw_notes_panel <- function() {
   } else {
     "Validation summary: no validation text file was provided"
   }
-  text(0.08, 0.13, status_label, adj = c(0, 0.5), cex = 0.84, font = 2, col = status_col)
+  text(0.08, 0.12, status_label, adj = c(0, 0.5), cex = 0.96, font = 2, col = status_col)
 }
 
 write_summary_tables <- function() {
@@ -612,23 +630,24 @@ write_summary_tables <- function() {
 }
 
 render_dashboard <- function(file_name) {
-  png(file.path(out_dir, file_name), width = 3000, height = 2200, res = 180, bg = bg)
+  png(file.path(out_dir, file_name), width = 2120, height = 2120, res = 180, bg = bg)
   layout(
     matrix(
       c(
-        1, 2, 3, 4, 5, 6, 6,
-        7, 7, 7, 7, 8, 8, 8,
-        9, 9, 9, 10, 10, 10, 10,
-        11, 11, 11, 11, 12, 12, 12
+        1, 1, 2, 2, 3, 3,
+        4, 4, 5, 5, 6, 6,
+        7, 7, 7, 8, 8, 8,
+        9, 9, 9, 10, 10, 10,
+        11, 11, 11, 12, 12, 12
       ),
-      nrow = 4,
+      nrow = 5,
       byrow = TRUE
     ),
-    widths = c(1.0, 1.0, 1.0, 1.0, 1.02, 1.02, 1.10),
-    heights = c(0.78, 1.40, 1.22, 1.08)
+    widths = c(1.0, 1.0, 1.0, 1.0, 1.01, 1.01),
+    heights = c(0.72, 0.72, 1.28, 1.16, 1.02)
   )
 
-  par(bg = bg, oma = c(0, 0, 4.2, 0), xpd = FALSE)
+  par(bg = bg, oma = c(0, 0, 2.8, 0), xpd = FALSE)
 
   no_sketch_cmp <- compare_metric(new_s$wall_mean, old_s$wall_mean, lower_is_better = TRUE, verb_better = "faster", verb_worse = "slower")
   no_sketch_build_cmp <- compare_metric(new_s$db_mean, old_s$db_mean, lower_is_better = TRUE, verb_better = "faster", verb_worse = "slower")
@@ -641,37 +660,37 @@ render_dashboard <- function(file_name) {
   draw_card(
     "No-Sketch Runtime",
     no_sketch_cmp$value,
-    sprintf("%.2fs current vs %.2fs old", new_s$wall_mean, old_s$wall_mean),
+    sprintf("%.2fs vs %.2fs", new_s$wall_mean, old_s$wall_mean),
     no_sketch_cmp$accent
   )
   draw_card(
     "No-Sketch Build",
     no_sketch_build_cmp$value,
-    sprintf("%.2fs current vs %.2fs old", new_s$db_mean, old_s$db_mean),
+    sprintf("%.2fs vs %.2fs", new_s$db_mean, old_s$db_mean),
     warn_col
   )
   draw_card(
     "Full-Sketch Runtime",
     full_sketch_cmp$value,
-    sprintf("%.2fs current vs %.2fs old", std_s$wall_mean, old_s$wall_mean),
+    sprintf("%.2fs vs %.2fs", std_s$wall_mean, old_s$wall_mean),
     full_sketch_cmp$accent
   )
   draw_card(
     "No-Sketch Query",
     no_sketch_query_cmp$value,
-    sprintf("%.2fs current vs %.2fs old", new_s$query_mean, old_s$query_mean),
+    sprintf("%.2fs vs %.2fs", new_s$query_mean, old_s$query_mean),
     no_sketch_query_cmp$accent
   )
   draw_card(
     "Batch=5 Peak RSS",
     batch5_rss_cmp$value,
-    sprintf("%.2f GiB current vs %.2f GiB old", batch5_s$rss_mean_gb, old_s$rss_mean_gb),
+    sprintf("%.2f GiB vs %.2f GiB", batch5_s$rss_mean_gb, old_s$rss_mean_gb),
     batch5_rss_cmp$accent
   )
   draw_card(
     "Batch=1 Peak RSS",
     batch1_rss_cmp$value,
-    sprintf("%.2f GiB current vs %.2f GiB old", batch1_s$rss_mean_gb, old_s$rss_mean_gb),
+    sprintf("%.2f GiB vs %.2f GiB", batch1_s$rss_mean_gb, old_s$rss_mean_gb),
     batch1_rss_cmp$accent
   )
 
@@ -686,8 +705,8 @@ render_dashboard <- function(file_name) {
   draw_cpu_panel()
   draw_notes_panel()
 
-  mtext("FastANI Performance Dashboard", outer = TRUE, cex = 1.62, font = 2, col = text_primary, line = 2.25)
-  mtext("Refreshed half-list repeated benchmarks with resource and perf-stat cache snapshots", outer = TRUE, side = 3, line = 1.02, cex = 0.96, col = text_muted)
+  mtext("FastANI Performance Dashboard", outer = TRUE, cex = 1.48, font = 2, col = text_primary, line = 1.42)
+  mtext("Refreshed half-list repeated benchmarks with resource and perf-stat cache snapshots", outer = TRUE, side = 3, line = 0.48, cex = 0.90, col = text_muted)
   mtext(
     sprintf(
       "Data sources: %s | %s",
@@ -696,7 +715,7 @@ render_dashboard <- function(file_name) {
     ),
     outer = TRUE,
     side = 1,
-    line = -1.5,
+    line = -0.7,
     cex = 0.82,
     col = text_muted
   )
