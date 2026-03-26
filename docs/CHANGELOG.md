@@ -92,6 +92,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: avoiding the per-row unordered-map lookups sounded reasonable, but the measured output path was already small enough that the change was slightly slower on the checked workload.
   Evidence path: `benchmark/cache_opt_experiments_20260325/output_length_cache_summary.md`
 
+- Evaluated building cached sketch queries one-at-a-time instead of caching the full query list and did not keep it.
+  Why: the idea reduced peak query-cache memory modestly, but it forced repeated sketch reload/setup work and more than doubled wall time on the checked `--batch-size 1` workload.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/querywindow_batch_cache_summary.md`
+
 - Reverted a flattened minimizer-bucket payload layout after a benchmark regression review.
   Why: the flattened span-based layout looked promising on earlier sketch-query spot checks, but a full half-list publication rerun showed clear regressions in no-sketch reference build, query mapping, and peak RSS. The current branch restores the prior bucket-vector layout.
   Benchmark summary:
