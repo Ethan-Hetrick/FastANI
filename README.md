@@ -266,13 +266,13 @@ Using a smaller representative size is the more aggressive choice and can increa
 
 ### Execution options
 
-| Parameter           | Default    | Description                                                                                                                                                                                                                                           | Typical use                                                                   |
-| ------------------- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| `-t, --threads`     | `1`        | Thread count for parallel execution.                                                                                                                                                                                                                  | Increase for faster runs on multicore systems.                                |
-| `--batch-size`      | all shards | Load sketch shards in batches during sketch-backed querying; requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. A value of `1` gives the lowest peak memory usage, while omitting the option loads all shards at once. | Use when RAM is limited or when you want to tune the memory/runtime tradeoff. |
-| `-s, --sanityCheck` | `false`    | Run the built-in sanity check mode.                                                                                                                                                                                                                   | Use for debugging or internal validation.                                     |
-| `-h, --help`        | `false`    | Print the help page.                                                                                                                                                                                                                                  | Use to inspect the CLI quickly.                                               |
-| `-v, --version`     | `false`    | Show the version.                                                                                                                                                                                                                                     | Use when reporting or debugging installations.                                |
+| Parameter           | Default     | Description                                                                                                                                                                                                                                                | Typical use                                                                   |
+| ------------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `-t, --threads`     | `1`         | Thread count for parallel execution.                                                                                                                                                                                                                       | Increase for faster runs on multicore systems.                                |
+| `--batch-size`      | full sketch | Load sketch chunks in batches during sketch-backed querying; requires `--sketch` and is incompatible with `--matrix` and `--write-ref-sketch`. A value of `1` gives the lowest peak memory usage, while omitting the option loads the full sketch at once. | Use when RAM is limited or when you want to tune the memory/runtime tradeoff. |
+| `-s, --sanityCheck` | `false`     | Run the built-in sanity check mode.                                                                                                                                                                                                                        | Use for debugging or internal validation.                                     |
+| `-h, --help`        | `false`     | Print the help page.                                                                                                                                                                                                                                       | Use to inspect the CLI quickly.                                               |
+| `-v, --version`     | `false`     | Show the version.                                                                                                                                                                                                                                          | Use when reporting or debugging installations.                                |
 
 FastANI can persist reference sketches and reuse them across runs.
 
@@ -292,13 +292,13 @@ This is especially useful when the same reference database is queried repeatedly
 
 #### Sketch-backed querying with RAM control
 
-Load all sketch shards at once for the best sketch-backed runtime:
+Load the full sketch at once for the best sketch-backed runtime:
 
 ```sh
 fastANI -q query.fa --sketch reference_sketch -o output.txt
 ```
 
-Load one shard at a time for the lowest memory footprint:
+Load one chunk at a time for the lowest memory footprint:
 
 ```sh
 fastANI -q query.fa --sketch reference_sketch --batch-size 1 -o output.txt
@@ -310,20 +310,26 @@ Use an intermediate batch size to trade RAM for better runtime:
 fastANI -q query.fa --sketch reference_sketch --batch-size 5 -o output.txt
 ```
 
+Important:
+
+- Omitting `--batch-size` is the speed-optimized sketch mode, not the lowest-memory mode.
+- In practice, loading the full sketch at once can use more peak memory than a plain no-sketch run, because the full sketch-backed lookup state is kept resident for query speed.
+- Use `--batch-size` when your goal is to cap RAM usage during sketch-backed querying.
+
 #### Batch-size memory heuristic
 
-- As a rough rule of thumb, peak RAM is often close to `0.10 GiB + 2.8 x (sum of sketch shard sizes loaded together)`.
-- For balanced sketches, you can approximate this as `0.10 GiB + 2.8 x batch_size x average_shard_size`.
-- For a safer request on HPC or cloud systems, estimate from the largest shard instead of the average, then add another `20%` headroom for scheduler requests.
+- As a rough rule of thumb, peak RAM is often close to `0.10 GiB + 2.8 x (sum of sketch chunk sizes loaded together)`.
+- For balanced sketches, you can approximate this as `0.10 GiB + 2.8 x batch_size x average_chunk_size`.
+- For a safer request on HPC or cloud systems, estimate from the largest chunk instead of the average, then add another `20%` headroom for scheduler requests.
 
 <details>
 <summary>Example: estimate query-time memory from a sketch prefix</summary>
 
-<pre><code class="language-sh"># Sketch prefix and desired shard batch size.
+<pre><code class="language-sh"># Sketch prefix and desired chunk batch size.
 prefix=reference_sketch
 batch=5
 
-# Use the largest shard for a conservative estimate.
+# Use the largest chunk for a conservative estimate.
 largest=$(stat -c '%s' "${prefix}".* | sort -nr | head -1)
 
 # Convert bytes into a rough peak RAM estimate and a safer request.
@@ -338,8 +344,8 @@ BEGIN {
 
 </details>
 
-This uses the largest sketch shard as a conservative sizing input and reports a safer scheduler request.
-Using the average shard size instead would be a more aggressive estimate and may underpredict memory on uneven datasets.
+This uses the largest sketch chunk as a conservative sizing input and reports a safer scheduler request.
+Using the average chunk size instead would be a more aggressive estimate and may underpredict memory on uneven datasets.
 
 #### Sketch-build memory heuristic
 
@@ -571,11 +577,12 @@ The extended metrics can be very helpful when interpreting the biological signif
 
 ### Out-of-memory errors
 
-If a sketch-backed query runs out of memory, rerun it with `--batch-size` to limit how many sketch shards are loaded at once.
+If a sketch-backed query runs out of memory, rerun it with `--batch-size` to limit how many sketch chunks are loaded at once.
 
 - `--batch-size 1` gives the lowest memory footprint.
 - Intermediate values such as `--batch-size 5` trade more RAM for better runtime.
-- Omitting `--batch-size` loads all sketch shards at once and uses the most memory.
+- Omitting `--batch-size` loads the full sketch at once and uses the most memory.
+- That full-sketch mode can also exceed the peak memory of a plain no-sketch run, so do not assume that `--sketch` alone is automatically the lower-memory option.
 
 If you do not need the `.matrix` sidecar, combining sparse output with `--average-reciprocals` is often a more flexible way to produce one row per genome pair before downstream reshaping.
 
@@ -589,7 +596,7 @@ If you need results that are stable across reruns, operators, or validation cycl
 - Keep reference list ordering stable when possible. `--write-ref-sketch` now canonicalizes reference ordering for reproducibility using a lightweight content-derived sort key, so the same reference set is less sensitive to input-list order than before.
 - Make saved sketches read-only after creation to avoid accidental modification, for example: `chmod a-w reference_sketch.*`
 - Record the exact `fastANI --version`, command line, reference list, and output mode (`--matrix`, `--extended-metrics`, `--average-reciprocals`) alongside released results.
-- Prefer `--batch-size` over mapping-parameter changes when the goal is only to reduce RAM usage. `--batch-size` changes how sketch shards are loaded, not the mapping configuration itself.
+- Prefer `--batch-size` over mapping-parameter changes when the goal is only to reduce RAM usage. `--batch-size` changes how sketch chunks are loaded, not the mapping configuration itself.
 - Keep the primary sparse output. Derived `.matrix` files or downstream reshaped matrices are useful, but the sparse table is the most explicit record of what FastANI reported.
 - Quality-check assemblies before analysis. Poorly assembled inputs can weaken ANI estimates and complicate downstream interpretation.
 

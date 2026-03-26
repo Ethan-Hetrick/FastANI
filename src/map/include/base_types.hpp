@@ -90,7 +90,6 @@ template <typename KSEQ, typename MinimizerVec> struct QueryMetaData
 
 struct CachedQueryFragment
 {
-  std::string name;
   offset_t sequenceLength = 0;
   seqno_t seqCounter;
   int sketchSize;

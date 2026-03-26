@@ -18,6 +18,8 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Related commits: `2df35bc`, `f1a5532`, `cbc0d21`, `3ebaf07`
 - Reduced repeated low-memory overhead by caching query-side work and skipping unnecessary sketch-load postprocessing.
   Related commits: `f1a5532`, `cbc0d21`
+- Added a later cache/locality optimization pass for sketch-backed querying and CGI postprocessing, reducing hot-structure size, simplifying cached query state, caching reusable output metadata, and cutting avoidable callback/output work.
+  Related commits: `43f663e`, `1e4feb8`, `da84cb4`, `57e7aae`, `b558913`, `d6428f0`, `2dec82f`, `0db0bda`, `f34813d`
 - Improved query-side performance through buffer reuse, reduced copying, cheaper hot loops, and lower synchronization overhead.
   Related commits: `8467983`, `21081f2`, `1053186`, `6d75e89`, `accdccc`, `5b68ea8`, `1a947c3`, `b61a62e`, `792836a`, `eea33e0`, `cc0acd7`, `1641bee`
 - Improved sketch/reference build performance through I/O tuning, buffer reuse, uppercase checks, container sizing, and targeted regression fixes.
@@ -74,6 +76,35 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: some candidate micro-optimizations either regressed performance or were not stable enough to keep.
   Related commits: `78ac943`, `9b8871e`, `accdccc`, `a68d2eb`
 
+- Rejected several later micro-optimizations during the cache-optimization pass even when they preserved output parity.
+  Why: shrinking `MappingResult`, changing `SlideMapper::delete_ref()` to `lower_bound()`, and adding extra reserve hints in `doL2Mapping()` or CGI postprocessing did not produce consistent wins and often slowed the standard sketch path enough to fail the “keep it” bar.
+  Status: not retained; the branch keeps only the local changes that showed a clear or at least stable benefit on the repeated sketch-query workloads.
+
+- Evaluated reusing the `seedHitsL1` buffer in the normal no-sketch `doL1Mapping()` path and did not keep it.
+  Why: the change preserved output parity and trimmed a little transient memory in spot checks, but the runtime signal stayed too weak and noisy to justify another hot-path API change without a clearer benchmark win.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/seedhits_reuse_normal_path_summary.md`
+
+- Evaluated move-based CGI result merging and copy elision in `outputCGI()` and did not keep it.
+  Why: the post-mapping/output path was already cheap enough on the checked no-sketch workload that removing these late copies did not produce a meaningful end-to-end improvement.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/outputcopy_elision_summary.md`
+
+- Evaluated precomputing genome-length vectors inside `outputCGI()` and did not keep it.
+  Why: avoiding the per-row unordered-map lookups sounded reasonable, but the measured output path was already small enough that the change was slightly slower on the checked workload.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/output_length_cache_summary.md`
+
+- Evaluated building cached sketch queries one-at-a-time instead of caching the full query list and did not keep it.
+  Why: the idea reduced peak query-cache memory modestly, but it forced repeated sketch reload/setup work and more than doubled wall time on the checked `--batch-size 1` workload.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/querywindow_batch_cache_summary.md`
+
+- Reverted a flattened minimizer-bucket payload layout after a benchmark regression review.
+  Why: the flattened span-based layout looked promising on earlier sketch-query spot checks, but a full half-list publication rerun showed clear regressions in no-sketch reference build, query mapping, and peak RSS. The current branch restores the prior bucket-vector layout.
+  Benchmark summary:
+  - half-list no-sketch reference-build phase: `123.85s` pre-flatten -> `197.26s` flattened
+  - half-list no-sketch query-mapping phase: `19.80s` pre-flatten -> `34.04s` flattened
+  - half-list no-sketch peak RSS: `4.26 GiB` pre-flatten -> `5.73 GiB` flattened
+    Decision: do not keep or reintroduce this flattened minimizer-bucket storage without materially different evidence on both sketch-backed and no-sketch workloads.
+    Related commit: `b037e92`
+
 ## Query Mapping Performance
 
 - Removed unnecessary seed-hit copying during L1 mapping.
@@ -111,6 +142,23 @@ The intent is to help a technical reviewer understand what changed, why it chang
 - Tightened hot-loop behavior in minimizer handling and mapping setup.
   Why: reduce overhead in very frequently executed code paths.
   Related commits: `eea33e0`, `cc0acd7`, `1641bee`
+
+- Reduced hot-query footprint and callback overhead in the later cache-optimization pass.
+  Why: the sketch-backed query path remained sensitive to cache locality and repeated bookkeeping even after the earlier mapping optimizations.
+  What changed:
+  - removed unused L2 mapping iterator state from the hot local mapping struct
+  - split cached fragment names away from hot cached-query records
+  - reused cached-query scratch buffers
+  - captured compact CGI mapping records directly instead of first materializing larger legacy result objects
+    Related commits: `43f663e`, `1e4feb8`, `da84cb4`, `0db0bda`, `f34813d`
+
+- Densified the minimizer lookup payload storage used in sketch-backed querying.
+  Why: replace per-bucket heap fragmentation and pointer chasing with contiguous payload spans while preserving the same lookup semantics.
+  Related commit: `b037e92`
+
+- Removed repeated metadata reconstruction from sketch-backed output generation.
+  Why: avoid rebuilding cached-query state, contig/genome lookup metadata, genome lengths, query offsets, and legacy `/dev/null` text output work on every repeated query path.
+  Related commits: `57e7aae`, `b558913`, `d6428f0`, `2dec82f`
 
 ## Sketch / Reference Build Performance
 
@@ -180,6 +228,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: expose the per-fragment identity distribution in a cleaner format than `.visual` for downstream histogramming and quality analysis while avoiding one-file-per-pair output.
   Format: writes a single `<output>.hist` sidecar with repeated comparison blocks delimited by `//`,
   followed by `# Query`, `# Reference`, and tab-delimited `identity<TAB>count` rows.
+
+- Reduced `--frag-hist` postprocessing overhead by keeping one histogram stream open per split instead of reopening the same temp file for every reported pair.
+  Why: the histogram sidecar is emitted from the CGI post-mapping path, so repeated open/close cycles were pure avoidable I/O overhead on many-pair runs.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/fraghist_stream_reuse_summary.md`
 
 - Clarified help text and README behavior for visualization, matrix output, sketch usage, and other option interactions.
   Why: several options affect only specific outputs or are incompatible in non-obvious ways.
@@ -290,6 +342,9 @@ The intent is to help a technical reviewer understand what changed, why it chang
 - Refreshed the publication dashboard and summary tables after rerunning the current release modes and tightening the validation notes.
   Why: keep the manuscript-facing figures synchronized with the latest benchmark values and the corrected sketch-output path.
   Related commit: `6c4cb6a`
+
+- Refreshed the publication benchmark after the later cache/locality pass, corrected the dashboard CPU-efficiency labels to report effective cores and normalized thread utilization, and clarified user-facing terminology around `full sketch` mode and `sketch chunks`.
+  Why: keep the dashboard aligned with the current fixed code path, avoid misleading aggregate `%CPU` labels for multithreaded runs, and make the sketch-memory tradeoff easier to interpret.
 
 ## Benchmark-Derived Technical Observations
 

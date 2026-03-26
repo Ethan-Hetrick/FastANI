@@ -161,11 +161,14 @@ int core_genome_identity(int argc, char **argv)
 
   // Set up for parallel execution
   omp_set_num_threads(executionThreads);
+  parameters.querySequenceLengths.assign(parameters.querySequences.size(), 0);
   std::vector<skch::Parameters> parameters_split(referenceSplitCount);
   cgi::splitReferenceGenomes(parameters, parameters_split, referenceSplitCount);
 
   // Final output vectors of ANI computation (one per thread; merged after parallel region)
   std::vector<std::vector<cgi::CGI_Results>> finalResults_by_thread(referenceSplitCount);
+  std::vector<std::vector<uint64_t>> queryLengths_by_thread(
+    referenceSplitCount, std::vector<uint64_t>(parameters.querySequences.size(), 0));
   std::vector<std::unique_ptr<skch::CachedQueryData>> cachedQueries(
     parameters.querySequences.size());
   const int effectiveBatchSize =
@@ -226,20 +229,14 @@ int core_genome_identity(int argc, char **argv)
         else if (prev < referSketch.metadata.size())
           genomeName = referSketch.metadata[prev].name;
 
-        uint64_t genomeLen = 0;
-        for (size_t contigId = prev; contigId < end && contigId < referSketch.metadata.size();
-             contigId++)
-        {
-          const uint64_t contigLen = static_cast<uint64_t>(referSketch.metadata[contigId].len);
-          const uint64_t usableLen = (contigLen / static_cast<uint64_t>(parameters.minReadLength)) *
-                                     static_cast<uint64_t>(parameters.minReadLength);
-          genomeLen += usableLen;
-        }
-
         parameters_split[i].refSequences.push_back(genomeName);
-        parameters_split[i].refSequenceLengths.push_back(genomeLen);
+        parameters_split[i].refSequenceLengths.push_back(referSketch.genomeLengthsByFile[g]);
         prev = end;
       }
+    }
+    else
+    {
+      parameters_split[i].refSequenceLengths = referSketch.genomeLengthsByFile;
     }
 
     if (parameters.writeRefSketchMode)
@@ -262,6 +259,17 @@ int core_genome_identity(int argc, char **argv)
 
     // Final output vector of ANI computation
     std::vector<cgi::CGI_Results> finalResults_local;
+    std::unique_ptr<std::ofstream> fragHistOut;
+
+    if (parameters_split[i].fragHist)
+    {
+      fragHistOut = std::make_unique<std::ofstream>(
+        cgi::fragmentIdentityTempFileName(fileName, static_cast<uint64_t>(i)), std::ios::app);
+      if (!fragHistOut->good())
+      {
+        throw std::runtime_error("ERROR: unable to open fragment identity output file for writing");
+      }
+    }
 
     sanityCheck[i] = referSketch.sanityCheck(parameters.maxRatioDiff);
     ratioDiffs[i] = referSketch.getRatioDifference();
@@ -273,10 +281,10 @@ int core_genome_identity(int argc, char **argv)
       {
         t0 = skch::Time::now();
 
-        skch::MappingResultsVector_t mapResults;
+        std::vector<cgi::MappingResult_CGI> mapResults;
         uint64_t totalQueryFragments = 0;
 
-        auto fn = std::bind(skch::Map::insertL2ResultsToVec, std::ref(mapResults), _1);
+        auto fn = std::bind(cgi::insertL2ResultsToCGIVec, std::ref(mapResults), _1);
         if (omp_get_thread_num() == 0)
           std::cerr << "INFO [thread 0], skch::main, Start Map " << queryno + 1 << std::endl;
 
@@ -296,6 +304,9 @@ int core_genome_identity(int argc, char **argv)
 
         skch::Map &mapper = *mapperPtr;
 
+        queryLengths_by_thread[i][queryno] =
+          totalQueryFragments * static_cast<uint64_t>(parameters.minReadLength);
+
         std::chrono::duration<double> timeMapQuery = skch::Time::now() - t0;
 
         if (omp_get_thread_num() == 0)
@@ -305,7 +316,7 @@ int core_genome_identity(int argc, char **argv)
         t0 = skch::Time::now();
 
         cgi::computeCGI(parameters_split[i], mapResults, mapper, referSketch, totalQueryFragments,
-                        queryno, fileName, finalResults_local, i);
+                        queryno, fileName, finalResults_local, i, fragHistOut.get());
 
         std::chrono::duration<double> timeCGI = skch::Time::now() - t0;
 
@@ -350,6 +361,41 @@ int core_genome_identity(int argc, char **argv)
 
   std::cerr << "INFO, skch::main, parallel_for execution finished" << std::endl;
 
+  for (size_t queryno = 0; queryno < parameters.querySequenceLengths.size(); queryno++)
+  {
+    for (int i = 0; i < referenceSplitCount; i++)
+    {
+      if (queryLengths_by_thread[i][queryno] != 0)
+      {
+        parameters.querySequenceLengths[queryno] = queryLengths_by_thread[i][queryno];
+        break;
+      }
+    }
+  }
+
+  {
+    size_t totalRefs = 0;
+    for (int i = 0; i < referenceSplitCount; i++)
+      totalRefs += parameters_split[i].refSequences.size();
+
+    parameters.refSequenceLengths.assign(totalRefs, 0);
+
+    for (int i = 0; i < referenceSplitCount; i++)
+    {
+      for (size_t localIdx = 0; localIdx < parameters_split[i].refSequenceLengths.size();
+           localIdx++)
+      {
+        size_t globalIdx =
+          localIdx * static_cast<size_t>(referenceSplitCount) + static_cast<size_t>(i);
+        if (globalIdx < totalRefs)
+        {
+          parameters.refSequenceLengths[globalIdx] =
+            parameters_split[i].refSequenceLengths[localIdx];
+        }
+      }
+    }
+  }
+
   if (parameters.loadSketchMode)
   {
     size_t totalRefs = 0;
@@ -357,7 +403,6 @@ int core_genome_identity(int argc, char **argv)
       totalRefs += parameters_split[i].refSequences.size();
 
     parameters.refSequences.assign(totalRefs, "");
-    parameters.refSequenceLengths.assign(totalRefs, 0);
 
     for (int i = 0; i < referenceSplitCount; i++)
     {
@@ -368,9 +413,6 @@ int core_genome_identity(int argc, char **argv)
         if (globalIdx < totalRefs)
         {
           parameters.refSequences[globalIdx] = parameters_split[i].refSequences[localIdx];
-          if (localIdx < parameters_split[i].refSequenceLengths.size())
-            parameters.refSequenceLengths[globalIdx] =
-              parameters_split[i].refSequenceLengths[localIdx];
         }
       }
     }

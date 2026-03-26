@@ -33,31 +33,12 @@ namespace cgi
  */
 void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::Sketch &refSketch)
 {
-  static thread_local std::vector<int> contigToGenomeId;
-
-  const size_t numContigs = refSketch.metadata.size();
-
-  contigToGenomeId.assign(numContigs, -1);
-
-  size_t start = 0;
-  for (size_t genomeId = 0; genomeId < refSketch.sequencesByFileInfo.size(); genomeId++)
-  {
-    const size_t end = static_cast<size_t>(refSketch.sequencesByFileInfo[genomeId]);
-
-    for (size_t contigId = start; contigId < end && contigId < numContigs; contigId++)
-    {
-      contigToGenomeId[contigId] = static_cast<int>(genomeId);
-    }
-
-    start = end;
-  }
-
   for (auto &r : shortResults)
   {
     const size_t contigId = static_cast<size_t>(r.refSequenceId);
 
-    if (contigId < contigToGenomeId.size())
-      r.genomeId = contigToGenomeId[contigId];
+    if (contigId < refSketch.contigToGenomeId.size())
+      r.genomeId = refSketch.contigToGenomeId[contigId];
   }
 }
 
@@ -68,71 +49,20 @@ void reviseRefIdToGenomeId(std::vector<MappingResult_CGI> &shortResults, skch::S
 void computeGenomeLengths(skch::Parameters &parameters,
                           std::unordered_map<std::string, uint64_t> &genomeLengths)
 {
-  for (auto &e : parameters.querySequences)
+  for (size_t i = 0; i < parameters.querySequences.size(); i++)
   {
-    // Open the file using kseq
-    gzFile fp = gzopen(e.c_str(), "r");
-    gzbuffer(fp, 1 << 20); // 1MB read buffer
-    kseq_t *seq = kseq_init(fp);
-    int l;
     uint64_t genomeLen = 0;
-
-    while ((l = kseq_read(seq)) >= 0)
-    {
-      if (l >= parameters.minReadLength)
-      {
-        uint64_t _l_ =
-          (((uint64_t)seq->seq.l) / parameters.minReadLength) * parameters.minReadLength;
-        genomeLen = genomeLen + _l_;
-      }
-    }
-
-    genomeLengths[e] = genomeLen;
-
-    kseq_destroy(seq);
-    gzclose(fp); // close the file handler
+    if (i < parameters.querySequenceLengths.size())
+      genomeLen = parameters.querySequenceLengths[i];
+    genomeLengths[parameters.querySequences[i]] = genomeLen;
   }
 
-  if (parameters.loadSketchMode)
+  for (size_t i = 0; i < parameters.refSequences.size(); i++)
   {
-    for (size_t i = 0; i < parameters.refSequences.size(); i++)
-    {
-      uint64_t genomeLen = 0;
-
-      if (i < parameters.refSequenceLengths.size())
-        genomeLen = parameters.refSequenceLengths[i];
-
-      genomeLengths[parameters.refSequences[i]] = genomeLen;
-    }
-  }
-  else
-  {
-    for (auto &e : parameters.refSequences)
-    {
-      if (genomeLengths.find(e) == genomeLengths.end())
-      {
-        gzFile fp = gzopen(e.c_str(), "r");
-        gzbuffer(fp, 1 << 20); // 1MB read buffer
-        kseq_t *seq = kseq_init(fp);
-        int l;
-        uint64_t genomeLen = 0;
-
-        while ((l = kseq_read(seq)) >= 0)
-        {
-          if (l >= parameters.minReadLength)
-          {
-            uint64_t _l_ =
-              (((uint64_t)seq->seq.l) / parameters.minReadLength) * parameters.minReadLength;
-            genomeLen = genomeLen + _l_;
-          }
-        }
-
-        genomeLengths[e] = genomeLen;
-
-        kseq_destroy(seq);
-        gzclose(fp); // close the file handler
-      }
-    }
+    uint64_t genomeLen = 0;
+    if (i < parameters.refSequenceLengths.size())
+      genomeLen = parameters.refSequenceLengths[i];
+    genomeLengths[parameters.refSequences[i]] = genomeLen;
   }
 }
 
@@ -154,26 +84,6 @@ void outputVisualizationFile(skch::Parameters &parameters,
     visFileName += std::to_string(omp_get_thread_num());
   std::ofstream outstrm(visFileName, std::ios::app);
 
-  // Shift offsets for converting from local (to contig) to global (to genome)
-  std::vector<skch::offset_t> queryOffsetAdder(mapper.metadata.size());
-  std::vector<skch::offset_t> refOffsetAdder(refSketch.metadata.size());
-
-  for (int i = 0; i < mapper.metadata.size(); i++)
-  {
-    if (i == 0)
-      queryOffsetAdder[i] = 0;
-    else
-      queryOffsetAdder[i] = queryOffsetAdder[i - 1] + mapper.metadata[i - 1].len;
-  }
-
-  for (int i = 0; i < refSketch.metadata.size(); i++)
-  {
-    if (i == 0)
-      refOffsetAdder[i] = 0;
-    else
-      refOffsetAdder[i] = refOffsetAdder[i - 1] + refSketch.metadata[i - 1].len;
-  }
-
   // Report all mappings that contribute to core-genome identity estimate
   // Format the output to blast tabular way (outfmt 6)
   for (auto &e : mappings_2way)
@@ -185,10 +95,12 @@ void outputVisualizationFile(skch::Parameters &parameters,
             << "NA"
             << "\t"
             << "NA"
-            << "\t" << e.queryStartPos + queryOffsetAdder[e.querySeqId] << "\t"
-            << e.queryStartPos + parameters.minReadLength - 1 + queryOffsetAdder[e.querySeqId]
-            << "\t" << e.refStartPos + refOffsetAdder[e.refSequenceId] << "\t"
-            << e.refStartPos + parameters.minReadLength - 1 + refOffsetAdder[e.refSequenceId]
+            << "\t" << e.queryStartPos + mapper.queryOffsetAdder[e.querySeqId] << "\t"
+            << e.queryStartPos + parameters.minReadLength - 1 +
+                 mapper.queryOffsetAdder[e.querySeqId]
+            << "\t" << e.refStartPos + refSketch.refOffsetAdder[e.refSequenceId] << "\t"
+            << e.refStartPos + parameters.minReadLength - 1 +
+                 refSketch.refOffsetAdder[e.refSequenceId]
             << "\t"
             << "NA"
             << "\t"
@@ -209,15 +121,8 @@ inline std::string fragmentIdentityTempFileName(const std::string &fileName, uin
 
 inline void outputFragmentIdentityFile(skch::Parameters &parameters,
                                        const std::vector<float> &fragmentAnis, uint64_t queryFileNo,
-                                       skch::seqno_t refGenomeId, std::string &fileName,
-                                       uint64_t splitIndex)
+                                       skch::seqno_t refGenomeId, std::ostream &outstrm)
 {
-  std::ofstream outstrm(fragmentIdentityTempFileName(fileName, splitIndex), std::ios::app);
-  if (!outstrm.good())
-  {
-    throw std::runtime_error("ERROR: unable to open fragment identity output file for writing");
-  }
-
   outstrm << "//\n";
   outstrm << "# Query: " << parameters.querySequences[queryFileNo] << "\n";
   outstrm << "# Reference: " << parameters.refSequences[refGenomeId] << "\n";
@@ -373,29 +278,28 @@ inline std::vector<CGI_Results> averageReciprocalResults(skch::Parameters &param
   return averagedResults;
 }
 
-void computeCGI(skch::Parameters &parameters, skch::MappingResultsVector_t &results,
+inline void insertL2ResultsToCGIVec(std::vector<MappingResult_CGI> &v,
+                                    const skch::MappingResult &reportedL2Result)
+{
+  MappingResult_CGI compactResult;
+  compactResult.refSequenceId = reportedL2Result.refSeqId;
+  compactResult.genomeId = 0; // revised later to genome id
+  compactResult.querySeqId = reportedL2Result.querySeqId;
+  compactResult.refStartPos = reportedL2Result.refStartPos;
+  compactResult.queryStartPos = 0;
+  compactResult.mapRefPosBin = reportedL2Result.refStartPos / (reportedL2Result.queryLen - 20);
+  compactResult.nucIdentity = reportedL2Result.nucIdentity;
+  v.push_back(compactResult);
+}
+
+void computeCGI(skch::Parameters &parameters, std::vector<MappingResult_CGI> &shortResults,
                 skch::Map &mapper, skch::Sketch &refSketch, uint64_t totalQueryFragments,
                 uint64_t queryFileNo, std::string &fileName,
-                std::vector<cgi::CGI_Results> &CGI_ResultsVector, uint64_t splitIndex)
+                std::vector<cgi::CGI_Results> &CGI_ResultsVector, uint64_t splitIndex,
+                std::ostream *fragHistOut = nullptr)
 {
-  // Vector to save relevant fields from mapping results
-  std::vector<MappingResult_CGI> shortResults;
-
-  shortResults.reserve(results.size());
-
   // Note to self: For debugging any issue, it is often useful to print
   // shortResults, mappings_1way and mappings_2way vectors
-
-  /// Parse map results and save fields which we need
-  // reference id (R), query id (Q), estimated identity (I)
-  for (auto &e : results)
-  {
-    shortResults.emplace_back(MappingResult_CGI{e.refSeqId,
-                                                0, // this value will be revised to genome id
-                                                e.querySeqId, e.refStartPos, e.queryStartPos,
-                                                e.refStartPos / (parameters.minReadLength - 20),
-                                                e.nucIdentity});
-  }
 
   /*
    * NOTE: We assume single file contains the sequences for single genome
@@ -511,8 +415,13 @@ void computeCGI(skch::Parameters &parameters, skch::MappingResultsVector_t &resu
 
     if (parameters.fragHist)
     {
-      outputFragmentIdentityFile(parameters, fragmentAnis, queryFileNo, currentGenomeId, fileName,
-                                 splitIndex);
+      if (fragHistOut == nullptr)
+      {
+        throw std::runtime_error(
+          "ERROR: fragment identity output stream was not initialized for histogram writing");
+      }
+      outputFragmentIdentityFile(parameters, fragmentAnis, queryFileNo, currentGenomeId,
+                                 *fragHistOut);
     }
 
     CGI_ResultsVector.push_back(currentResult);

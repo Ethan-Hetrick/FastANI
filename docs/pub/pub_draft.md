@@ -21,7 +21,7 @@ bibliography: paper.bib
 
 FastANI is a widely used tool for computing whole-genome average nucleotide identity (ANI) among microbial genomes. ANI is commonly used for species delineation, reference matching, and large-scale genome screening. The original FastANI work introduced an alignment-free approximate mapping strategy that was shown to remain accurate for both finished and draft genomes while substantially reducing runtime relative to alignment-based ANI workflows. In practice, however, repeated comparison against stable reference collections can still be limited by reference preprocessing costs and high memory requirements during sketch-backed querying. This fork extends FastANI with reusable reference sketches, explicit sketch-batch controls, richer output options, and a set of performance improvements aimed at large-scale production use.
 
-The resulting workflow better separates one-time reference preparation from repeated query execution. A reference collection can be sketched once, stored, and reused across many queries. Query-side memory use can then be controlled with a `--batch-size` parameter that trades runtime for lower peak memory by loading only a subset of sketch shards at a time. These changes are accompanied by implementation-level optimizations in both query mapping and reference preprocessing, along with expanded documentation and benchmarking materials to support reproducible deployment.
+The resulting workflow better separates one-time reference preparation from repeated query execution. A reference collection can be sketched once, stored, and reused across many queries. Query-side memory use can then be controlled with a `--batch-size` parameter that trades runtime for lower peak memory by loading only a subset of sketch chunks at a time. These changes are accompanied by implementation-level optimizations in both query mapping and reference preprocessing, along with expanded documentation and benchmarking materials to support reproducible deployment.
 
 # Statement of need
 
@@ -49,19 +49,19 @@ This “extend rather than replace” approach is also justified by current user
 
 # Software design
 
-The design centers on separating one-time work from repeated work. Reference-side preprocessing is captured in reusable sketch files, allowing the reference representation to be built once and loaded many times. On the query side, the execution model is extended so that sketch shards can be loaded either all at once or in configurable batches. This produces a continuum between maximum throughput and minimum memory use, rather than forcing a single memory-saving mode.
+The design centers on separating one-time work from repeated work. Reference-side preprocessing is captured in reusable sketch files, allowing the reference representation to be built once and loaded many times. On the query side, the execution model is extended so that sketch chunks can be loaded either all at once or in configurable batches. This produces a continuum between maximum throughput and minimum memory use, rather than forcing a single memory-saving mode.
 
 The fork also includes a series of implementation-level performance changes that do not alter the intended algorithmic output. These include reduced allocation churn, reuse of temporary buffers in hot paths, less copying during L1/L2 mapping, reduced synchronization overhead in postprocessing, and targeted improvements in minimizer-generation and sketch-loading paths. During development, candidate optimizations that introduced regressions were explicitly backed out or revised, and benchmarking was used as the primary acceptance criterion for performance-oriented changes.
 
 The current sketch query model supports three practically useful operating points:
 
-- load all sketch shards at once for maximum sketch-backed performance;
+- load the full sketch at once for maximum sketch-backed performance;
 - use `--batch-size 5` to recover much of that performance while lowering memory;
 - use `--batch-size 1` to minimize per-job memory at the cost of additional batching overhead.
 
-This design is especially useful on HPC and cloud platforms. Instead of assigning a large memory allocation to every ANI job, users can choose a batch size that fits their scheduler and concurrency model. In that sense, the fork operationalizes and formalizes a strategy that the original FastANI paper discussed conceptually for large databases: processing only part of the reference database at a time to reduce peak memory. The repository also now includes explicit memory-planning heuristics for sketch creation and sketch-backed querying so that users can estimate requests from reference content or sketch shard sizes.
+This design is especially useful on HPC and cloud platforms. Instead of assigning a large memory allocation to every ANI job, users can choose a batch size that fits their scheduler and concurrency model. In that sense, the fork operationalizes and formalizes a strategy that the original FastANI paper discussed conceptually for large databases: processing only part of the reference database at a time to reduce peak memory. The repository also now includes explicit memory-planning heuristics for sketch creation and sketch-backed querying so that users can estimate requests from reference content or sketch chunk sizes.
 
-Performance evaluation in this fork was conducted with repository-local benchmarking scripts and repeated Release-mode runs. The maintained benchmark suite uses `tests/data/Shigella_flexneri_2a_01.fna` as a fixed query genome and a randomly sampled half-list of 5032 references derived from `genome-list.txt`. For each benchmark configuration, the repository executes three repeated runs and records `/usr/bin/time -v` outputs together with FastANI's internal timing logs. The benchmark table captures wall time, reference-build or sketch-load time, query-mapping time, post-mapping time, CPU utilization, filesystem I/O, and peak resident set size. The evaluated configurations include the original FastANI baseline, the current no-sketch execution path, all-shards sketch loading, and batched sketch execution with `--batch-size 5` and `--batch-size 1` using an eight-shard reference sketch. Exact-output validation is performed with file-level `diff` checks between comparable 1-v-many modes, and the resulting CSV tables, validation logs, plotting scripts, and dashboard figures are bundled under `docs/pub` so that the performance claims in this manuscript are directly auditable. In addition, a full all-v-all benchmark was run on `genome-list.txt` against itself to compare the original tool with the new sketch build plus sketch query workflow at larger scale.
+Performance evaluation in this fork was conducted with repository-local benchmarking scripts and repeated Release-mode runs. The maintained benchmark suite uses `tests/data/Shigella_flexneri_2a_01.fna` as a fixed query genome and a randomly sampled half-list of 5032 references derived from `genome-list.txt`. For each benchmark configuration, the repository executes three repeated runs and records `/usr/bin/time -v` outputs together with FastANI's internal timing logs. The benchmark table captures wall time, reference-build or sketch-load time, query-mapping time, post-mapping time, CPU utilization, filesystem I/O, and peak resident set size. The evaluated configurations include the original FastANI baseline, the current no-sketch execution path, full-sketch loading, and batched sketch execution with `--batch-size 5` and `--batch-size 1` using an eight-chunk reference sketch. Exact-output validation is performed with file-level `diff` checks between comparable 1-v-many modes, and the resulting CSV tables, validation logs, plotting scripts, and dashboard figures are bundled under `docs/pub` so that the performance claims in this manuscript are directly auditable. In addition, a full all-v-all benchmark was run on `genome-list.txt` against itself to compare the original tool with the new sketch build plus sketch query workflow at larger scale.
 
 # Research impact statement
 
@@ -69,7 +69,7 @@ The impact claim for this fork is based on reproducible benchmarking materials i
 
 The most consequential operational change is the addition of batched sketch loading. In the current benchmark set, all sketch-backed execution modes preserved exact output agreement against the standard sketch query baseline across repeated runs. Relative to the original tool on the maintained benchmark workload:
 
-- loading all sketch shards at once reduced end-to-end runtime by about 15.3x;
+- loading the full sketch at once reduced end-to-end runtime by about 15.3x;
 - `--batch-size 5` reduced runtime by about 88.6% while lowering peak RSS by about 26.2%;
 - `--batch-size 1` reduced runtime by about 64.8% while lowering peak RSS by about 82.9%.
 
@@ -79,7 +79,7 @@ These results are important because they show that the fork improves not only ra
 
 The likely near-term impact is therefore practical rather than methodological: this work makes FastANI easier to run repeatedly, easier to schedule at scale, and less likely to fail due to avoidable memory pressure in shared compute environments.
 
-![Release-mode benchmark dashboard comparing the original FastANI baseline, the current no-sketch execution path, and three sketch-backed execution modes (all shards, `--batch-size 5`, and `--batch-size 1`). The figure summarizes runtime composition, peak memory, and relative performance changes derived from the reproducible benchmark materials bundled with this repository.\label{fig:performance-dashboard}](images/publication_performance_dashboard.png)
+![Release-mode benchmark dashboard comparing the original FastANI baseline, the current no-sketch execution path, and three sketch-backed execution modes (full sketch, `--batch-size 5`, and `--batch-size 1`). The figure summarizes runtime composition, peak memory, and relative performance changes derived from the reproducible benchmark materials bundled with this repository.\label{fig:performance-dashboard}](images/publication_performance_dashboard.png)
 
 # AI usage disclosure
 

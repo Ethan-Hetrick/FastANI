@@ -63,16 +63,12 @@ inline CachedQueryData buildCachedQueryData(const skch::Parameters &param,
           cached.metadata.push_back(ContigInfo{seq->name.s, fragmentLen});
 
         CachedQueryFragment frag;
-        frag.name = seq->name.s;
-        std::string fragmentSequence(seq->seq.s + i * param.minReadLength, param.minReadLength);
-        frag.sequenceLength = static_cast<offset_t>(fragmentSequence.size());
+        frag.sequenceLength = param.minReadLength;
         frag.seqCounter = seqCounter + i;
 
         kseq_t seqView = *seq;
-        seqView.name.s = const_cast<char *>(frag.name.c_str());
-        seqView.name.l = static_cast<int>(frag.name.size());
-        seqView.seq.s = const_cast<char *>(fragmentSequence.data());
-        seqView.seq.l = static_cast<int>(fragmentSequence.size());
+        seqView.seq.s = seq->seq.s + i * param.minReadLength;
+        seqView.seq.l = param.minReadLength;
 
         CommonFunc::addMinimizers(frag.minimizerTableQuery, &seqView, param.kmerSize,
                                   param.windowSize, param.alphabetSize);
@@ -122,11 +118,9 @@ public:
   // Type for Stage L2's predicted mapping coordinate within each L1 candidate
   struct L2_mapLocus_t
   {
-    seqno_t seqId;                 // sequence id where read is mapped
-    offset_t meanOptimalPos;       // Among multiple consecutive optimal positions, save the avg.
-    Sketch::MIIter_t optimalStart; // optimal start mapping position (begin iterator)
-    Sketch::MIIter_t optimalEnd;   // optimal end mapping position (end iterator)
-    int sharedSketchSize;          // count of shared sketch elements
+    seqno_t seqId;           // sequence id where read is mapped
+    offset_t meanOptimalPos; // Among multiple consecutive optimal positions, save the avg.
+    int sharedSketchSize;    // count of shared sketch elements
   };
 
 private:
@@ -149,6 +143,7 @@ public:
   // Keep sequence length, name that appear in the contigs to compute global offsets
   // Optionally used if visualization is enabled
   std::vector<ContigInfo> metadata;
+  std::vector<offset_t> queryOffsetAdder;
 
   /**
    * @brief                             constructor
@@ -164,17 +159,38 @@ public:
       : param(p), refSketch(refsketch), processMappingResults(f)
   {
     this->mapQuery(totalQueryFragments, param.querySequences[queryno]);
+    if (param.visualize)
+      this->computeQueryOffsets();
   }
 
   Map(const skch::Parameters &p, const skch::Sketch &refsketch, const CachedQueryData &cachedQuery,
       PostProcessResultsFn_t f = nullptr)
       : param(p), refSketch(refsketch), processMappingResults(f)
   {
-    this->metadata = cachedQuery.metadata;
+    if (param.visualize)
+      this->metadata = cachedQuery.metadata;
     this->mapCachedQuery(cachedQuery);
+    if (param.visualize)
+      this->computeQueryOffsets();
   }
 
 private:
+  void computeQueryOffsets()
+  {
+    queryOffsetAdder.resize(metadata.size());
+    offset_t runningOffset = 0;
+    for (size_t i = 0; i < metadata.size(); i++)
+    {
+      queryOffsetAdder[i] = runningOffset;
+      runningOffset += metadata[i].len;
+    }
+  }
+
+  bool shouldWriteTextResults() const
+  {
+    return processMappingResults == nullptr || param.outFileName != "/dev/null";
+  }
+
   /**
    * @brief                                 parse over sequences in query file
    *                                        and map each on the reference
@@ -187,7 +203,9 @@ private:
     // Some reads are dropped because of short length
     seqno_t seqCounter = 0;
 
-    std::ofstream outstrm(param.outFileName);
+    std::ofstream outstrm;
+    if (shouldWriteTextResults())
+      outstrm.open(param.outFileName);
 
     {
       // Open the file using kseq
@@ -282,18 +300,22 @@ private:
 
   void mapCachedQuery(const CachedQueryData &cachedQuery)
   {
-    std::ofstream outstrm(param.outFileName);
+    std::ofstream outstrm;
+    if (shouldWriteTextResults())
+      outstrm.open(param.outFileName);
     std::vector<L1_candidateLocus_t> l1Mappings;
     l1Mappings.reserve(64);
     MappingResultsVector_t l2Mappings;
     l2Mappings.reserve(8);
+    std::vector<MinimizerMetaData> seedHitsL1;
+    kseq_t seqView{};
+    static char emptyName[] = "";
+    seqView.name.s = emptyName;
+    seqView.name.l = 0;
+    seqView.name.m = 0;
 
     for (const auto &frag : cachedQuery.fragments)
     {
-      kseq_t seqView{};
-      seqView.name.s = const_cast<char *>(frag.name.c_str());
-      seqView.name.l = static_cast<int>(frag.name.size());
-      seqView.name.m = static_cast<int>(frag.name.size());
       seqView.seq.s = nullptr;
       seqView.seq.l = static_cast<int>(frag.sequenceLength);
       seqView.seq.m = 0;
@@ -306,7 +328,7 @@ private:
         const MinVec_Type &minimizerTableQuery;
       } Q{&seqView, frag.seqCounter, frag.sketchSize, frag.minimizerTableQuery};
 
-      mapSinglePreparedQuerySeq(Q, l1Mappings, l2Mappings, outstrm);
+      mapSinglePreparedQuerySeq(Q, l1Mappings, l2Mappings, seedHitsL1, outstrm);
     }
   }
 
@@ -352,10 +374,12 @@ private:
 
   template <typename Q_Info>
   inline void mapSinglePreparedQuerySeq(Q_Info &Q, std::vector<L1_candidateLocus_t> &l1Mappings,
-                                        MappingResultsVector_t &l2Mappings, std::ofstream &outstrm)
+                                        MappingResultsVector_t &l2Mappings,
+                                        std::vector<MinimizerMetaData> &seedHitsL1,
+                                        std::ofstream &outstrm)
   {
     l2Mappings.clear();
-    doL1MappingPrepared(Q, l1Mappings);
+    doL1MappingPrepared(Q, l1Mappings, seedHitsL1);
     doL2Mapping(Q, l1Mappings, l2Mappings);
     reportL2Mappings(l2Mappings, outstrm);
   }
@@ -434,11 +458,11 @@ private:
     this->computeL1CandidateRegions(Q, seedHitsL1, minimumHits, l1Mappings);
   }
 
-  template <typename Q_Info, typename Vec> void doL1MappingPrepared(Q_Info &Q, Vec &l1Mappings)
+  template <typename Q_Info, typename Vec>
+  void doL1MappingPrepared(Q_Info &Q, Vec &l1Mappings, std::vector<MinimizerMetaData> &seedHitsL1)
   {
-    std::vector<MinimizerMetaData> seedHitsL1;
-
     l1Mappings.clear();
+    seedHitsL1.clear();
 
     if (Q.sketchSize == 0)
       return;
@@ -638,8 +662,6 @@ private:
       if (slidemap.sharedSketchElements > l2_out.sharedSketchSize)
       {
         l2_out.sharedSketchSize = slidemap.sharedSketchElements;
-        l2_out.optimalStart = mi_L2iter.sw_beg;
-        l2_out.optimalEnd = mi_L2iter.sw_end;
 
         // Save the position
         beginOptimalPos = mi_L2iter.sw_beg->wpos;
@@ -672,6 +694,7 @@ private:
    */
   void reportL2Mappings(MappingResultsVector_t &l2Mappings, std::ofstream &outstrm)
   {
+    const bool writeTextResults = shouldWriteTextResults();
     float bestNucIdentity = 0;
 
     // Only compute best identity when we need the "top 1%" filter
@@ -690,17 +713,20 @@ private:
       // Report top 1% mappings (unless reportAll flag is true, in which case we report all)
       if (param.reportAll == true || e.nucIdentity >= bestNucIdentity - 1.0)
       {
-        outstrm << e.querySeqId << " " << e.queryLen << " " << e.queryStartPos << " "
-                << e.queryEndPos << " " << "+/-"
-                << " " << this->refSketch.metadata[e.refSeqId].name << " "
-                << this->refSketch.metadata[e.refSeqId].len << " " << e.refStartPos << " "
-                << e.refEndPos << " " << e.nucIdentity;
+        if (writeTextResults)
+        {
+          outstrm << e.querySeqId << " " << e.queryLen << " " << e.queryStartPos << " "
+                  << e.queryEndPos << " " << "+/-"
+                  << " " << this->refSketch.metadata[e.refSeqId].name << " "
+                  << this->refSketch.metadata[e.refSeqId].len << " " << e.refStartPos << " "
+                  << e.refEndPos << " " << e.nucIdentity;
 
-        // Print some additional statistics
-        outstrm << " " << e.conservedSketches << " " << e.sketchSize << " "
-                << e.nucIdentityUpperBound;
+          // Print some additional statistics
+          outstrm << " " << e.conservedSketches << " " << e.sketchSize << " "
+                  << e.nucIdentityUpperBound;
 
-        outstrm << "\n";
+          outstrm << "\n";
+        }
 
         // User defined processing of the results
         if (processMappingResults != nullptr)
