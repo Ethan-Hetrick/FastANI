@@ -84,6 +84,14 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: the change preserved output parity and trimmed a little transient memory in spot checks, but the runtime signal stayed too weak and noisy to justify another hot-path API change without a clearer benchmark win.
   Evidence path: `benchmark/cache_opt_experiments_20260325/seedhits_reuse_normal_path_summary.md`
 
+- Evaluated move-based CGI result merging and copy elision in `outputCGI()` and did not keep it.
+  Why: the post-mapping/output path was already cheap enough on the checked no-sketch workload that removing these late copies did not produce a meaningful end-to-end improvement.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/outputcopy_elision_summary.md`
+
+- Evaluated precomputing genome-length vectors inside `outputCGI()` and did not keep it.
+  Why: avoiding the per-row unordered-map lookups sounded reasonable, but the measured output path was already small enough that the change was slightly slower on the checked workload.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/output_length_cache_summary.md`
+
 - Reverted a flattened minimizer-bucket payload layout after a benchmark regression review.
   Why: the flattened span-based layout looked promising on earlier sketch-query spot checks, but a full half-list publication rerun showed clear regressions in no-sketch reference build, query mapping, and peak RSS. The current branch restores the prior bucket-vector layout.
   Benchmark summary:
