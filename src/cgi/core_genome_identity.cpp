@@ -259,6 +259,17 @@ int core_genome_identity(int argc, char **argv)
 
     // Final output vector of ANI computation
     std::vector<cgi::CGI_Results> finalResults_local;
+    std::unique_ptr<std::ofstream> fragHistOut;
+
+    if (parameters_split[i].fragHist)
+    {
+      fragHistOut = std::make_unique<std::ofstream>(
+        cgi::fragmentIdentityTempFileName(fileName, static_cast<uint64_t>(i)), std::ios::app);
+      if (!fragHistOut->good())
+      {
+        throw std::runtime_error("ERROR: unable to open fragment identity output file for writing");
+      }
+    }
 
     sanityCheck[i] = referSketch.sanityCheck(parameters.maxRatioDiff);
     ratioDiffs[i] = referSketch.getRatioDifference();
@@ -305,7 +316,7 @@ int core_genome_identity(int argc, char **argv)
         t0 = skch::Time::now();
 
         cgi::computeCGI(parameters_split[i], mapResults, mapper, referSketch, totalQueryFragments,
-                        queryno, fileName, finalResults_local, i);
+                        queryno, fileName, finalResults_local, i, fragHistOut.get());
 
         std::chrono::duration<double> timeCGI = skch::Time::now() - t0;
 

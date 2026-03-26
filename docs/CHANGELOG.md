@@ -80,14 +80,18 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: shrinking `MappingResult`, changing `SlideMapper::delete_ref()` to `lower_bound()`, and adding extra reserve hints in `doL2Mapping()` or CGI postprocessing did not produce consistent wins and often slowed the standard sketch path enough to fail the “keep it” bar.
   Status: not retained; the branch keeps only the local changes that showed a clear or at least stable benefit on the repeated sketch-query workloads.
 
+- Evaluated reusing the `seedHitsL1` buffer in the normal no-sketch `doL1Mapping()` path and did not keep it.
+  Why: the change preserved output parity and trimmed a little transient memory in spot checks, but the runtime signal stayed too weak and noisy to justify another hot-path API change without a clearer benchmark win.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/seedhits_reuse_normal_path_summary.md`
+
 - Reverted a flattened minimizer-bucket payload layout after a benchmark regression review.
   Why: the flattened span-based layout looked promising on earlier sketch-query spot checks, but a full half-list publication rerun showed clear regressions in no-sketch reference build, query mapping, and peak RSS. The current branch restores the prior bucket-vector layout.
   Benchmark summary:
   - half-list no-sketch reference-build phase: `123.85s` pre-flatten -> `197.26s` flattened
   - half-list no-sketch query-mapping phase: `19.80s` pre-flatten -> `34.04s` flattened
   - half-list no-sketch peak RSS: `4.26 GiB` pre-flatten -> `5.73 GiB` flattened
-  Decision: do not keep or reintroduce this flattened minimizer-bucket storage without materially different evidence on both sketch-backed and no-sketch workloads.
-  Related commit: `b037e92`
+    Decision: do not keep or reintroduce this flattened minimizer-bucket storage without materially different evidence on both sketch-backed and no-sketch workloads.
+    Related commit: `b037e92`
 
 ## Query Mapping Performance
 
@@ -212,6 +216,10 @@ The intent is to help a technical reviewer understand what changed, why it chang
   Why: expose the per-fragment identity distribution in a cleaner format than `.visual` for downstream histogramming and quality analysis while avoiding one-file-per-pair output.
   Format: writes a single `<output>.hist` sidecar with repeated comparison blocks delimited by `//`,
   followed by `# Query`, `# Reference`, and tab-delimited `identity<TAB>count` rows.
+
+- Reduced `--frag-hist` postprocessing overhead by keeping one histogram stream open per split instead of reopening the same temp file for every reported pair.
+  Why: the histogram sidecar is emitted from the CGI post-mapping path, so repeated open/close cycles were pure avoidable I/O overhead on many-pair runs.
+  Evidence path: `benchmark/cache_opt_experiments_20260325/fraghist_stream_reuse_summary.md`
 
 - Clarified help text and README behavior for visualization, matrix output, sketch usage, and other option interactions.
   Why: several options affect only specific outputs or are incompatible in non-obvious ways.

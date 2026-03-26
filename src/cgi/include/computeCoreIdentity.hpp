@@ -121,15 +121,8 @@ inline std::string fragmentIdentityTempFileName(const std::string &fileName, uin
 
 inline void outputFragmentIdentityFile(skch::Parameters &parameters,
                                        const std::vector<float> &fragmentAnis, uint64_t queryFileNo,
-                                       skch::seqno_t refGenomeId, std::string &fileName,
-                                       uint64_t splitIndex)
+                                       skch::seqno_t refGenomeId, std::ostream &outstrm)
 {
-  std::ofstream outstrm(fragmentIdentityTempFileName(fileName, splitIndex), std::ios::app);
-  if (!outstrm.good())
-  {
-    throw std::runtime_error("ERROR: unable to open fragment identity output file for writing");
-  }
-
   outstrm << "//\n";
   outstrm << "# Query: " << parameters.querySequences[queryFileNo] << "\n";
   outstrm << "# Reference: " << parameters.refSequences[refGenomeId] << "\n";
@@ -302,7 +295,8 @@ inline void insertL2ResultsToCGIVec(std::vector<MappingResult_CGI> &v,
 void computeCGI(skch::Parameters &parameters, std::vector<MappingResult_CGI> &shortResults,
                 skch::Map &mapper, skch::Sketch &refSketch, uint64_t totalQueryFragments,
                 uint64_t queryFileNo, std::string &fileName,
-                std::vector<cgi::CGI_Results> &CGI_ResultsVector, uint64_t splitIndex)
+                std::vector<cgi::CGI_Results> &CGI_ResultsVector, uint64_t splitIndex,
+                std::ostream *fragHistOut = nullptr)
 {
   // Note to self: For debugging any issue, it is often useful to print
   // shortResults, mappings_1way and mappings_2way vectors
@@ -421,8 +415,13 @@ void computeCGI(skch::Parameters &parameters, std::vector<MappingResult_CGI> &sh
 
     if (parameters.fragHist)
     {
-      outputFragmentIdentityFile(parameters, fragmentAnis, queryFileNo, currentGenomeId, fileName,
-                                 splitIndex);
+      if (fragHistOut == nullptr)
+      {
+        throw std::runtime_error(
+          "ERROR: fragment identity output stream was not initialized for histogram writing");
+      }
+      outputFragmentIdentityFile(parameters, fragmentAnis, queryFileNo, currentGenomeId,
+                                 *fragHistOut);
     }
 
     CGI_ResultsVector.push_back(currentResult);
